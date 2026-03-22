@@ -1,15 +1,12 @@
 /**
  * BOSS直聘 mark — label/mark a candidate.
  *
- * Uses /wapi/zprelation/friend/label/addMark to add a label to a candidate,
- * and /wapi/zprelation/friend/label/deleteMark to remove one.
- *
- * Available labels (from /wapi/zprelation/friend/label/get):
+ * Available labels:
  *   1=新招呼, 2=沟通中, 3=已约面, 4=已获取简历, 5=已交换电话,
  *   6=已交换微信, 7=不合适, 8=牛人发起, 11=收藏
  */
 import { cli, Strategy } from '../../registry.js';
-import type { IPage } from '../../types.js';
+import { requirePage, navigateToChat, bossFetch, findFriendByUid, verbose } from './common.js';
 
 const LABEL_MAP: Record<string, number> = {
   '新招呼': 1, '沟通中': 2, '已约面': 3, '已获取简历': 4,
@@ -22,6 +19,7 @@ cli({
   description: 'BOSS直聘给候选人添加标签',
   domain: 'www.zhipin.com',
   strategy: Strategy.COOKIE,
+  navigateBefore: false,
   browser: true,
   args: [
     { name: 'uid', required: true, help: 'Encrypted UID of the candidate' },
@@ -29,10 +27,9 @@ cli({
     { name: 'remove', type: 'boolean', default: false, help: 'Remove the label instead of adding' },
   ],
   columns: ['status', 'detail'],
-  func: async (page: IPage | null, kwargs) => {
-    if (!page) throw new Error('Browser page required');
+  func: async (page, kwargs) => {
+    requirePage(page);
 
-    const uid = kwargs.uid;
     const labelInput = kwargs.label;
     const remove = kwargs.remove || false;
 
@@ -43,7 +40,6 @@ cli({
     } else if (!isNaN(Number(labelInput))) {
       labelId = Number(labelInput);
     } else {
-      // Try partial match
       const entry = Object.entries(LABEL_MAP).find(([k]) => k.includes(labelInput));
       if (entry) {
         labelId = entry[1];
@@ -52,99 +48,22 @@ cli({
       }
     }
 
-    if (process.env.OPENCLI_VERBOSE) {
-      console.error(`[opencli:boss] ${remove ? 'Removing' : 'Adding'} label ${labelId} for ${uid}...`);
-    }
+    verbose(`${remove ? 'Removing' : 'Adding'} label ${labelId} for ${kwargs.uid}...`);
 
-    await page.goto('https://www.zhipin.com/web/chat/index');
-    await page.wait({ time: 2 });
+    await navigateToChat(page);
 
-    // First get numeric UID from friend list
-    const friendData: any = await page.evaluate(`
-      async () => {
-        return new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('GET', 'https://www.zhipin.com/wapi/zprelation/friend/getBossFriendListV2.json?page=1&status=0&jobId=0', true);
-          xhr.withCredentials = true;
-          xhr.timeout = 15000;
-          xhr.setRequestHeader('Accept', 'application/json');
-          xhr.onload = () => { try { resolve(JSON.parse(xhr.responseText)); } catch(e) { reject(e); } };
-          xhr.onerror = () => reject(new Error('Network Error'));
-          xhr.send();
-        });
-      }
-    `);
+    const friend = await findFriendByUid(page, kwargs.uid, { checkGreetList: true });
+    if (!friend) throw new Error('未找到该候选人');
 
-    if (friendData.code !== 0) {
-      if (friendData.code === 7 || friendData.code === 37) {
-        throw new Error('Cookie 已过期！请在当前 Chrome 浏览器中重新登录 BOSS 直聘。');
-      }
-      throw new Error(`获取好友列表失败: ${friendData.message}`);
-    }
-
-    // Find in friend list (check multiple pages)
-    let friend: any = null;
-    let allFriends = friendData.zpData?.friendList || [];
-    friend = allFriends.find((f: any) => f.encryptUid === uid);
-
-    if (!friend) {
-      // Also check greetRecSortList
-      const greetData: any = await page.evaluate(`
-        async () => {
-          return new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', 'https://www.zhipin.com/wapi/zprelation/friend/greetRecSortList', true);
-            xhr.withCredentials = true;
-            xhr.timeout = 15000;
-            xhr.setRequestHeader('Accept', 'application/json');
-            xhr.onload = () => { try { resolve(JSON.parse(xhr.responseText)); } catch(e) { reject(e); } };
-            xhr.onerror = () => reject(new Error('Network Error'));
-            xhr.send();
-          });
-        }
-      `);
-      if (greetData.code === 0) {
-        friend = (greetData.zpData?.friendList || []).find((f: any) => f.encryptUid === uid);
-      }
-    }
-
-    if (!friend) {
-      throw new Error('未找到该候选人');
-    }
-
-    const numericUid = friend.uid;
     const friendName = friend.name || '候选人';
-    const friendSource = friend.friendSource ?? 0;
-
     const action = remove ? 'deleteMark' : 'addMark';
-    const targetUrl = `https://www.zhipin.com/wapi/zprelation/friend/label/${action}`;
-
-    // The API uses friendId + friendSource + labelId (discovered from JS bundles)
     const params = new URLSearchParams({
-      friendId: String(numericUid),
-      friendSource: String(friendSource),
+      friendId: String(friend.uid),
+      friendSource: String(friend.friendSource ?? 0),
       labelId: String(labelId),
     });
 
-    // Try GET first (the N() wrapper in boss JS uses GET with query params)
-    const data: any = await page.evaluate(`
-      async () => {
-        return new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('GET', '${targetUrl}?${params.toString()}', true);
-          xhr.withCredentials = true;
-          xhr.timeout = 15000;
-          xhr.setRequestHeader('Accept', 'application/json');
-          xhr.onload = () => { try { resolve(JSON.parse(xhr.responseText)); } catch(e) { reject(new Error('JSON parse failed')); } };
-          xhr.onerror = () => reject(new Error('Network Error'));
-          xhr.send();
-        });
-      }
-    `);
-
-    if (data.code !== 0) {
-      throw new Error(`标签操作失败: ${data.message} (code=${data.code})`);
-    }
+    await bossFetch(page, `https://www.zhipin.com/wapi/zprelation/friend/label/${action}?${params.toString()}`);
 
     const labelName = Object.entries(LABEL_MAP).find(([, v]) => v === labelId)?.[0] || String(labelId);
     return [{

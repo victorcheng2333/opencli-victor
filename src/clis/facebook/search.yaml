@@ -15,13 +15,14 @@ args:
     description: Number of results
 
 pipeline:
-  - navigate:
-      url: https://www.facebook.com/search/top?q=${{ args.query }}
-      settleMs: 4000
+  - navigate: https://www.facebook.com
 
   - evaluate: |
-      (() => {
+      (async () => {
+        const query = ${{ args.query | json }};
         const limit = ${{ args.limit }};
+        window.location.href = 'https://www.facebook.com/search/top?q=' + encodeURIComponent(query);
+        await new Promise(r => setTimeout(r, 4000));
         // Search results are typically in role="article" or role="listitem"
         let items = document.querySelectorAll('[role="article"]');
         if (items.length === 0) {
@@ -42,4 +43,4 @@ pipeline:
           });
       })()
 
-columns: [index, title, text]
+columns: [index, title, text, url]

@@ -39,7 +39,7 @@ Browser commands require:
 
 > **Note**: You must be logged into the target website in Chrome before running commands. Tabs opened during command execution are auto-closed afterwards.
 
-Public API commands (`hackernews`, `github search`, `v2ex`) need no browser.
+Public API commands (`hackernews`, `v2ex`) need no browser.
 
 ## Commands Reference
 
@@ -83,8 +83,10 @@ opencli xueqiu feed                      # 我的关注 timeline
 opencli xueqiu hot --limit 10            # 雪球热榜
 opencli xueqiu search "特斯拉"            # 搜索 (query positional)
 
-# GitHub (public)
-opencli github search "cli"              # 搜索仓库 (query positional)
+# GitHub (via gh External CLI)
+opencli gh repo list                     # 列出仓库 (passthrough to gh)
+opencli gh pr list --limit 5             # PR 列表
+opencli gh issue list                    # Issue 列表
 
 # Twitter/X (browser)
 opencli twitter trending --limit 10      # 热门话题
@@ -176,9 +178,11 @@ opencli antigravity status              # 检查 CDP 连接
 opencli antigravity send "hello"        # 发送文本到当前 agent 聊天框
 opencli antigravity read                # 读取整个聊天记录面板
 opencli antigravity new                 # 清空聊天、开启新对话
+opencli antigravity dump               # 导出 DOM 和快照调试信息
 opencli antigravity extract-code        # 自动抽取 AI 回复中的代码块
 opencli antigravity model claude        # 切换底层模型
 opencli antigravity watch               # 流式监听增量消息
+opencli antigravity serve --port 8082  # 启动 Anthropic 兼容代理
 
 # Barchart (browser)
 opencli barchart quote --symbol AAPL     # 股票行情
@@ -218,8 +222,9 @@ opencli weread ranking --limit 10        # 排行榜
 opencli jimeng generate --prompt "描述"  # AI 生图
 opencli jimeng history --limit 10        # 生成历史
 
-# Grok (Desktop)
-opencli grok ask "问题"                  # 提问 Grok (text positional)
+# Grok (default + explicit web)
+opencli grok ask --prompt "问题"         # 提问 Grok（兼容默认路径）
+opencli grok ask --prompt "问题" --web   # 显式 grok.com consumer web UI 路径
 
 # HuggingFace (public)
 opencli hf top --limit 10                # 热门模型

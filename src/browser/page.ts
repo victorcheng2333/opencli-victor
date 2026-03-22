@@ -11,9 +11,10 @@
  */
 
 import { formatSnapshot } from '../snapshotFormatter.js';
-import type { IPage } from '../types.js';
+import type { BrowserCookie, IPage, ScreenshotOptions, SnapshotOptions, WaitOptions } from '../types.js';
 import { sendCommand } from './daemon-client.js';
 import { wrapForEval } from './utils.js';
+import { generateSnapshotJs, scrollToRefJs, getFormStateJs } from './dom-snapshot.js';
 import {
   clickJs,
   typeTextJs,
@@ -69,17 +70,40 @@ export class Page implements IPage {
     }
   }
 
-  async evaluate(js: string): Promise<any> {
+  async evaluate(js: string): Promise<unknown> {
     const code = wrapForEval(js);
     return sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
   }
 
-  async getCookies(opts: { domain?: string; url?: string } = {}): Promise<any[]> {
+  async getCookies(opts: { domain?: string; url?: string } = {}): Promise<BrowserCookie[]> {
     const result = await sendCommand('cookies', { ...this._workspaceOpt(), ...opts });
     return Array.isArray(result) ? result : [];
   }
 
-  async snapshot(opts: { interactive?: boolean; compact?: boolean; maxDepth?: number; raw?: boolean } = {}): Promise<any> {
+  async snapshot(opts: SnapshotOptions = {}): Promise<unknown> {
+    // Primary: use the advanced DOM snapshot engine with multi-layer pruning
+    const snapshotJs = generateSnapshotJs({
+      viewportExpand: opts.viewportExpand ?? 800,
+      maxDepth: Math.max(1, Math.min(Number(opts.maxDepth) || 50, 200)),
+      interactiveOnly: opts.interactive ?? false,
+      maxTextLength: opts.maxTextLength ?? 120,
+      includeScrollInfo: true,
+      bboxDedup: true,
+    });
+
+    try {
+      const result = await sendCommand('exec', { code: snapshotJs, ...this._workspaceOpt(), ...this._tabOpt() });
+      // The advanced engine already produces a clean, pruned, LLM-friendly output.
+      // Do NOT pass through formatSnapshot — its format is incompatible.
+      return result;
+    } catch {
+      // Fallback: basic DOM snapshot (original implementation)
+      return this._basicSnapshot(opts);
+    }
+  }
+
+  /** Fallback basic snapshot — original buildTree approach */
+  private async _basicSnapshot(opts: Pick<SnapshotOptions, 'interactive' | 'compact' | 'maxDepth' | 'raw'> = {}): Promise<unknown> {
     const maxDepth = Math.max(1, Math.min(Number(opts.maxDepth) || 50, 200));
     const code = `
       (async () => {
@@ -93,7 +117,7 @@ export class Page implements IPage {
 
           let indent = '  '.repeat(depth);
           let line = indent + role;
-          if (name) line += ' "' + name.replace(/"/g, '\\\\"') + '"';
+          if (name) line += ' "' + name.replace(/"/g, '\\\\\\"') + '"';
           if (node.tagName?.toLowerCase() === 'a' && node.href) line += ' [' + node.href + ']';
           if (node.tagName?.toLowerCase() === 'input') line += ' [' + (node.type || 'text') + ']';
 
@@ -129,7 +153,17 @@ export class Page implements IPage {
     await sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
   }
 
-  async wait(options: number | { text?: string; time?: number; timeout?: number }): Promise<void> {
+  async scrollTo(ref: string): Promise<unknown> {
+    const code = scrollToRefJs(ref);
+    return sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
+  }
+
+  async getFormState(): Promise<Record<string, unknown>> {
+    const code = getFormStateJs();
+    return (await sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() })) as Record<string, unknown>;
+  }
+
+  async wait(options: number | WaitOptions): Promise<void> {
     if (typeof options === 'number') {
       await new Promise(resolve => setTimeout(resolve, options * 1000));
       return;
@@ -145,8 +179,9 @@ export class Page implements IPage {
     }
   }
 
-  async tabs(): Promise<any> {
-    return sendCommand('tabs', { op: 'list', ...this._workspaceOpt() });
+  async tabs(): Promise<unknown[]> {
+    const result = await sendCommand('tabs', { op: 'list', ...this._workspaceOpt() });
+    return Array.isArray(result) ? result : [];
   }
 
   async closeTab(index?: number): Promise<void> {
@@ -161,9 +196,10 @@ export class Page implements IPage {
     await sendCommand('tabs', { op: 'select', index, ...this._workspaceOpt() });
   }
 
-  async networkRequests(includeStatic: boolean = false): Promise<any> {
+  async networkRequests(includeStatic: boolean = false): Promise<unknown[]> {
     const code = networkRequestsJs(includeStatic);
-    return sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
+    const result = await sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
+    return Array.isArray(result) ? result : [];
   }
 
   /**
@@ -171,7 +207,7 @@ export class Page implements IPage {
    * Would require CDP Runtime.consoleAPICalled event listener.
    * @returns Always returns empty array.
    */
-  async consoleMessages(_level: string = 'info'): Promise<any> {
+  async consoleMessages(_level: string = 'info'): Promise<unknown[]> {
     return [];
   }
 
@@ -182,12 +218,7 @@ export class Page implements IPage {
    * @param options.fullPage - capture full scrollable page
    * @param options.path - save to file path (returns base64 if omitted)
    */
-  async screenshot(options: {
-    format?: 'png' | 'jpeg';
-    quality?: number;
-    fullPage?: boolean;
-    path?: string;
-  } = {}): Promise<string> {
+  async screenshot(options: ScreenshotOptions = {}): Promise<string> {
     const base64 = await sendCommand('screenshot', {
       ...this._workspaceOpt(),
       format: options.format,
@@ -229,11 +260,11 @@ export class Page implements IPage {
     }));
   }
 
-  async getInterceptedRequests(): Promise<any[]> {
+  async getInterceptedRequests(): Promise<unknown[]> {
     const { generateReadInterceptedJs } = await import('../interceptor.js');
     // Same as installInterceptor: must go through evaluate() for IIFE wrapping
     const result = await this.evaluate(generateReadInterceptedJs('__opencli_xhr'));
-    return (result as any[]) || [];
+    return Array.isArray(result) ? result : [];
   }
 }
 
