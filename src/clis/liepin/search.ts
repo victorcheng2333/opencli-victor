@@ -24,9 +24,30 @@ const CITY_CODES: Record<string, string> = {
 };
 
 const EXP_MAP: Record<string, string> = {
-  '应届': '0', '1-3': '03', '1-3年': '03', '3-5': '05', '3-5年': '05',
-  '5-10': '10', '5-10年': '10', '10以上': '99', '10年以上': '99',
+  '应届': '0', '0': '0',
+  '1-3': '03', '1-3年': '03',
+  '3-5': '05', '3-5年': '05',
+  '5-10': '10', '5-10年': '10',
+  '10以上': '99', '10年以上': '99',
 };
+
+/** Parse experience input like "5-20" → workYearsLow based on lower bound */
+function resolveExperience(input: string | undefined): string {
+  if (!input) return '';
+  const direct = resolveMap(input, EXP_MAP);
+  if (direct !== input) return direct; // found in map
+  // Try to parse numeric range like "5-20" and match by lower bound
+  const m = input.match(/^(\d+)/);
+  if (m) {
+    const low = parseInt(m[1], 10);
+    if (low >= 10) return '99';
+    if (low >= 5) return '10';
+    if (low >= 3) return '05';
+    if (low >= 1) return '03';
+    return '0';
+  }
+  return '';
+}
 
 const DEGREE_MAP: Record<string, string> = {
   '大专': '30', '本科': '40', '硕士': '50', 'MBA': '55', '博士': '60',
@@ -102,13 +123,16 @@ cli({
     };
 
     if (kwargs.city) {
-      const cityCode = resolveCity(kwargs.city);
-      baseParams.wantDqsOut = [{ dqCode: cityCode, dqName: kwargs.city }];
+      const cities = (kwargs.city as string).split(/[,，]/).map((s: string) => s.trim()).filter(Boolean);
+      baseParams.wantDqsOut = cities.map((c: string) => ({ dqCode: resolveCity(c), dqName: c }));
     }
-    const expVal = resolveMap(kwargs.experience, EXP_MAP);
+    const expVal = resolveExperience(kwargs.experience);
     if (expVal) baseParams.workYearsLow = expVal;
-    const degreeVal = resolveMap(kwargs.degree, DEGREE_MAP);
-    if (degreeVal) baseParams.eduLevels = [degreeVal];
+    if (kwargs.degree) {
+      const degrees = (kwargs.degree as string).split(/[,，]/).map((s: string) => s.trim()).filter(Boolean);
+      const codes = degrees.map((d: string) => resolveMap(d, DEGREE_MAP)).filter(Boolean);
+      if (codes.length) baseParams.eduLevels = codes;
+    }
     if (kwargs.active) {
       const activeVal = resolveMap(kwargs.active, ACTIVE_MAP);
       if (activeVal && activeVal !== '0') baseParams.jobPeriod = activeVal;
