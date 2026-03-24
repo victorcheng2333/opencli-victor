@@ -32,10 +32,23 @@ export function requirePage(page: IPage | null): asserts page is IPage {
 }
 
 /**
+ * Ensure the page is on the zconnect domain before accessing cookies.
+ * Re-navigates if needed (e.g. when navigateBefore silently failed).
+ */
+async function ensureOnDomain(page: IPage): Promise<void> {
+  const url = await page.evaluate(`location.href`) as string;
+  if (url.includes(ZCONNECT_DOMAIN)) return;
+  // Not on zconnect domain — navigate explicitly
+  await page.goto(`https://${ZCONNECT_DOMAIN}/home/`);
+  await page.wait(3);
+}
+
+/**
  * Extract auth parameters from browser cookies.
  * These are set by the ZOS web login and required for all API calls.
  */
 async function getAuthParams(page: IPage): Promise<Record<string, string>> {
+  await ensureOnDomain(page);
   return page.evaluate(`
     (() => {
       const c = {};
@@ -130,6 +143,7 @@ export async function zosFetchRaw(
   endpoint: string,
   bodyStr: string,
 ): Promise<ZosApiResponse> {
+  await ensureOnDomain(page);
   const data = await page.evaluate(`
     (async () => {
       const c = {};
