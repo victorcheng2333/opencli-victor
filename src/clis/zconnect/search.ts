@@ -6,7 +6,7 @@
  */
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
-import { ZCONNECT_DOMAIN, requirePage, zosFetch, formatSize, formatTime } from './common.js';
+import { ZCONNECT_DOMAIN, requirePage, zosFetch, formatSize, formatTime, resolvePath } from './common.js';
 
 cli({
   site: 'zconnect',
@@ -18,7 +18,7 @@ cli({
   navigateBefore: `https://${ZCONNECT_DOMAIN}/home/`,
   args: [
     { name: 'keyword', required: true, positional: true, help: '搜索关键词' },
-    { name: 'path', default: '/sata1/my/data', help: '搜索目录 (默认 /sata1/my/data)' },
+    { name: 'path', default: '', help: '搜索目录，支持相对路径 (默认 /sata1/my/data)' },
     { name: 'limit', type: 'int', default: 30, help: '返回数量上限 (默认30)' },
   ],
   columns: ['type', 'name', 'size', 'modified', 'path'],
@@ -26,7 +26,7 @@ cli({
     requirePage(page);
 
     const keyword: string = kwargs.keyword;
-    const searchPath: string = kwargs.path || '/sata1/my/data';
+    const searchPath = resolvePath(kwargs.path);
     const limit: number = kwargs.limit || 30;
 
     const resp = await zosFetch(page, '/file_search/file_search', {

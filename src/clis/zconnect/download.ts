@@ -10,7 +10,7 @@ import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
 import { httpDownload, sanitizeFilename } from '../../download/index.js';
 import { DownloadProgressTracker } from '../../download/progress.js';
-import { ZCONNECT_DOMAIN, requirePage, formatSize } from './common.js';
+import { ZCONNECT_DOMAIN, requirePage, formatSize, resolvePath } from './common.js';
 
 cli({
   site: 'zconnect',
@@ -21,7 +21,7 @@ cli({
   browser: true,
   navigateBefore: `https://${ZCONNECT_DOMAIN}/home/`,
   args: [
-    { name: 'path', required: true, positional: true, help: '极空间文件路径 (如 /sata1/my/data/test.mp4)' },
+    { name: 'path', required: true, positional: true, help: '文件路径，支持相对路径如 test/a.mp4' },
     { name: 'output', default: '.', help: '本地输出目录 (默认当前目录)' },
     { name: 'name', default: '', help: '自定义文件名 (默认使用原文件名)' },
   ],
@@ -29,7 +29,7 @@ cli({
   func: async (page: IPage | null, kwargs) => {
     requirePage(page);
 
-    const remotePath: string = kwargs.path;
+    const remotePath = resolvePath(kwargs.path);
     const outputDir: string = kwargs.output || '.';
     const customName: string = kwargs.name || '';
 

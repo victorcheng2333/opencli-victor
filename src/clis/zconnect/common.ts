@@ -12,7 +12,16 @@ import type { IPage } from '../../types.js';
 // ── Constants ───────────────────────────────────────────────────────────────
 
 export const ZCONNECT_DOMAIN = 'www.zconnect.cn';
+export const DEFAULT_BASE = '/sata1/my/data';
 const ZCONNECT_HOME = `https://${ZCONNECT_DOMAIN}/home/`;
+
+/**
+ * Resolve path: if it starts with '/' treat as absolute, otherwise prepend DEFAULT_BASE.
+ */
+export function resolvePath(p: string): string {
+  if (!p) return DEFAULT_BASE;
+  return p.startsWith('/') ? p : `${DEFAULT_BASE}/${p}`;
+}
 
 // ── Types ───────────────────────────────────────────────────────────────────
 

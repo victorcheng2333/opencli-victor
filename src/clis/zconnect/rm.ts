@@ -6,7 +6,7 @@
  */
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
-import { ZCONNECT_DOMAIN, requirePage, zosFetchRaw, buildPathsBody } from './common.js';
+import { ZCONNECT_DOMAIN, requirePage, zosFetchRaw, buildPathsBody, resolvePath } from './common.js';
 
 cli({
   site: 'zconnect',
@@ -17,14 +17,14 @@ cli({
   browser: true,
   navigateBefore: `https://${ZCONNECT_DOMAIN}/home/`,
   args: [
-    { name: 'path', required: true, positional: true, help: '要删除的文件/目录路径 (支持多个，逗号分隔)' },
+    { name: 'path', required: true, positional: true, help: '要删除的路径，支持相对路径和逗号分隔多个' },
   ],
   columns: ['path', 'status'],
   func: async (page: IPage | null, kwargs) => {
     requirePage(page);
 
     const pathInput: string = kwargs.path;
-    const paths = pathInput.split(',').map((p: string) => p.trim()).filter(Boolean);
+    const paths = pathInput.split(',').map((p: string) => resolvePath(p.trim())).filter(Boolean);
 
     if (paths.length === 0) throw new Error('请指定至少一个路径');
 

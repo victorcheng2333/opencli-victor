@@ -10,7 +10,7 @@ import * as path from 'node:path';
 import * as https from 'node:https';
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
-import { ZCONNECT_DOMAIN, requirePage, formatSize } from './common.js';
+import { ZCONNECT_DOMAIN, requirePage, formatSize, resolvePath } from './common.js';
 
 cli({
   site: 'zconnect',
@@ -22,7 +22,7 @@ cli({
   navigateBefore: `https://${ZCONNECT_DOMAIN}/home/`,
   args: [
     { name: 'file', required: true, positional: true, help: '本地文件路径' },
-    { name: 'dest', default: '/sata1/my/data', help: '极空间目标目录 (默认 /sata1/my/data)' },
+    { name: 'dest', default: '', help: '目标目录，支持相对路径 (默认 /sata1/my/data)' },
     { name: 'name', default: '', help: '自定义目标文件名 (默认使用原文件名)' },
   ],
   columns: ['file', 'size', 'status', 'dest'],
@@ -30,7 +30,7 @@ cli({
     requirePage(page);
 
     const localPath: string = kwargs.file;
-    const destDir: string = kwargs.dest || '/sata1/my/data';
+    const destDir = resolvePath(kwargs.dest);
     const customName: string = kwargs.name || '';
 
     // Validate local file exists

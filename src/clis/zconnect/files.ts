@@ -6,7 +6,7 @@
  */
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
-import { ZCONNECT_DOMAIN, requirePage, zosFetch, formatSize, formatTime } from './common.js';
+import { ZCONNECT_DOMAIN, requirePage, zosFetch, formatSize, formatTime, resolvePath } from './common.js';
 
 cli({
   site: 'zconnect',
@@ -17,7 +17,7 @@ cli({
   browser: true,
   navigateBefore: `https://${ZCONNECT_DOMAIN}/home/`,
   args: [
-    { name: 'path', default: '/sata1/my/data', positional: true, help: '目录路径 (默认 /sata1/my/data)' },
+    { name: 'path', default: '', positional: true, help: '目录路径，支持相对路径如 test (默认 /sata1/my/data)' },
     { name: 'sort', default: 'mtime', help: '排序方式: mtime/name/size', choices: ['mtime', 'name', 'size'] },
     { name: 'hidden', type: 'boolean', default: false, help: '显示隐藏文件' },
     { name: 'limit', type: 'int', default: 0, help: '返回数量上限 (0=不限)' },
@@ -26,7 +26,7 @@ cli({
   func: async (page: IPage | null, kwargs) => {
     requirePage(page);
 
-    const path = kwargs.path || '/sata1/my/data';
+    const path = resolvePath(kwargs.path);
     const sortby = kwargs.sort || 'mtime';
     const showHidden = kwargs.hidden ? '1' : '0';
     const limit = kwargs.limit || 0;

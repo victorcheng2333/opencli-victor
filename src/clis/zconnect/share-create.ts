@@ -6,7 +6,7 @@
  */
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
-import { ZCONNECT_DOMAIN, requirePage, zosFetchRaw, buildPathsBody } from './common.js';
+import { ZCONNECT_DOMAIN, requirePage, zosFetchRaw, buildPathsBody, resolvePath } from './common.js';
 
 cli({
   site: 'zconnect',
@@ -17,7 +17,7 @@ cli({
   browser: true,
   navigateBefore: `https://${ZCONNECT_DOMAIN}/home/`,
   args: [
-    { name: 'path', required: true, positional: true, help: '要分享的文件/目录路径' },
+    { name: 'path', required: true, positional: true, help: '要分享的路径，支持相对路径' },
     { name: 'expire', type: 'int', default: 86400, help: '有效期(秒)，默认86400(1天)。0=永久' },
     { name: 'pass', default: '', help: '提取密码（留空则无密码）' },
   ],
@@ -25,7 +25,7 @@ cli({
   func: async (page: IPage | null, kwargs) => {
     requirePage(page);
 
-    const filePath: string = kwargs.path;
+    const filePath = resolvePath(kwargs.path);
     const expire: string = String(kwargs.expire || 86400);
     const pass: string = kwargs.pass || '';
 

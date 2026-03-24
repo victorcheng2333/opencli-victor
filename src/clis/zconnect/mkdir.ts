@@ -6,7 +6,7 @@
  */
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
-import { ZCONNECT_DOMAIN, requirePage, zosFetch } from './common.js';
+import { ZCONNECT_DOMAIN, requirePage, zosFetch, resolvePath } from './common.js';
 
 cli({
   site: 'zconnect',
@@ -17,14 +17,14 @@ cli({
   browser: true,
   navigateBefore: `https://${ZCONNECT_DOMAIN}/home/`,
   args: [
-    { name: 'path', required: true, positional: true, help: '父目录路径' },
+    { name: 'path', required: true, positional: true, help: '父目录路径，支持相对路径' },
     { name: 'name', required: true, help: '新目录名称' },
   ],
   columns: ['name', 'path', 'status'],
   func: async (page: IPage | null, kwargs) => {
     requirePage(page);
 
-    const parentPath: string = kwargs.path;
+    const parentPath = resolvePath(kwargs.path);
     const dirName: string = kwargs.name;
 
     const resp = await zosFetch(page, '/v2/file/newdir', {
