@@ -1,112 +1,142 @@
 /**
- * 极空间 — 下载文件到本地
+ * 极空间 — 下载文件或文件夹到本地
  *
  * GET /v2/file/download?path={path}&webagent=v2&request_purpose=5
  * Uses cookie authentication for streaming binary download.
+ * For directories, recursively lists and downloads all files.
  */
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
 import { httpDownload, sanitizeFilename } from '../../download/index.js';
 import { DownloadProgressTracker } from '../../download/progress.js';
-import { ZCONNECT_DOMAIN, requirePage, formatSize, resolvePath } from './common.js';
+import { ZCONNECT_DOMAIN, requirePage, zosFetch, formatSize, resolvePath } from './common.js';
+
+/** Get file/dir info via API */
+async function getInfo(page: IPage, remotePath: string): Promise<any> {
+  const resp = await zosFetch(page, '/v2/file/info', { path: remotePath });
+  return resp.data;
+}
+
+/** Recursively collect all files in a directory */
+async function listAllFiles(page: IPage, dirPath: string): Promise<Array<{ path: string; name: string; size: string }>> {
+  const resp = await zosFetch(page, '/v2/file/list', { path: dirPath, show_hidden: '0' });
+  const list = resp.data?.list || [];
+  const files: Array<{ path: string; name: string; size: string }> = [];
+
+  for (const item of list) {
+    if (item.is_dir === '1') {
+      const subFiles = await listAllFiles(page, item.path);
+      files.push(...subFiles);
+    } else {
+      files.push({ path: item.path, name: item.name, size: item.size });
+    }
+  }
+  return files;
+}
 
 cli({
   site: 'zconnect',
   name: 'download',
-  description: '从极空间下载文件到本地',
+  description: '从极空间下载文件或文件夹到本地',
   domain: ZCONNECT_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
   navigateBefore: `https://${ZCONNECT_DOMAIN}/home/`,
   args: [
-    { name: 'path', required: true, positional: true, help: '文件路径，支持相对路径如 test/a.mp4' },
-    { name: 'output', default: '.', help: '本地输出目录 (默认当前目录)' },
-    { name: 'name', default: '', help: '自定义文件名 (默认使用原文件名)' },
+    { name: 'path', required: true, positional: true, help: '文件/目录路径，支持相对路径如 test/a.mp4' },
+    { name: 'output', default: '', help: '本地输出目录 (默认 ~/Downloads/zspace)' },
+    { name: 'name', default: '', help: '自定义文件名 (仅单文件时有效)' },
   ],
   columns: ['file', 'size', 'status'],
   func: async (page: IPage | null, kwargs) => {
     requirePage(page);
 
     const remotePath = resolvePath(kwargs.path);
-    const outputDir: string = kwargs.output || '.';
+    const outputDir: string = kwargs.output || path.join(os.homedir(), 'Downloads', 'zspace');
     const customName: string = kwargs.name || '';
 
-    // Get file info first
-    const fileInfo = await page.evaluate(`
-      (async () => {
-        const cookies = {};
-        document.cookie.split('; ').forEach(c => {
-          const i = c.indexOf('=');
-          if (i > 0) cookies[c.slice(0, i)] = c.slice(i + 1);
-        });
-        const params = new URLSearchParams({
-          path: ${JSON.stringify(remotePath)},
-          token: cookies.zenithtoken || '',
-          device_id: cookies.device_id || '',
-          version: cookies.version || '',
-          plat: 'web',
-          _l: cookies._l || 'zh_cn',
-          device: decodeURIComponent(cookies.device || 'Mac'),
-        });
-        const rnd = Date.now() + '_' + Math.floor(Math.random() * 10000);
-        const res = await fetch('/v2/file/info?&rnd=' + rnd + '&webagent=v2', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: params.toString(),
-        });
-        return res.json();
-      })()
-    `) as any;
+    const info = await getInfo(page, remotePath);
 
-    if (fileInfo.code !== '200') {
-      throw new Error(`文件不存在或无权访问: ${fileInfo.msg || remotePath}`);
-    }
-
-    const info = fileInfo.data;
-    if (info.is_dir === '1') {
-      throw new Error('暂不支持下载整个目录，请指定具体文件路径');
-    }
-
-    // Determine output file name
-    const originalName = info.name || path.basename(remotePath);
-    const fileName = customName || sanitizeFilename(originalName);
-    fs.mkdirSync(outputDir, { recursive: true });
-    const destPath = path.join(outputDir, fileName);
-
-    // Get cookies from document.cookie (page.getCookies returns empty for zconnect)
+    // Get cookies for HTTP download
     const cookieString = await page.evaluate(`document.cookie`) as string;
 
-    // Construct download URL
-    const downloadParams = new URLSearchParams({
-      path: remotePath,
-      webagent: 'v2',
-      request_purpose: '5',
-    });
-    const downloadUrl = `https://${ZCONNECT_DOMAIN}/v2/file/download?${downloadParams.toString()}`;
+    // Single file download
+    if (info.is_dir !== '1') {
+      const originalName = info.name || path.basename(remotePath);
+      const fileName = customName || sanitizeFilename(originalName);
+      fs.mkdirSync(outputDir, { recursive: true });
+      const destPath = path.join(outputDir, fileName);
 
-    const fileSize = parseInt(info.size || '0', 10);
-    const tracker = new DownloadProgressTracker(1, true);
-    const progressBar = tracker.onFileStart(fileName, 0);
+      const downloadParams = new URLSearchParams({ path: remotePath, webagent: 'v2', request_purpose: '5' });
+      const downloadUrl = `https://${ZCONNECT_DOMAIN}/v2/file/download?${downloadParams.toString()}`;
 
-    const result = await httpDownload(downloadUrl, destPath, {
-      cookies: cookieString,
-      timeout: 600000, // 10 minutes for large files
-      onProgress: (received, total) => {
-        if (progressBar) progressBar.update(received, total);
-      },
-    });
+      const tracker = new DownloadProgressTracker(1, true);
+      const progressBar = tracker.onFileStart(fileName, 0);
 
-    if (progressBar) progressBar.complete(result.success);
-    tracker.onFileComplete(result.success);
+      const result = await httpDownload(downloadUrl, destPath, {
+        cookies: cookieString,
+        timeout: 600000,
+        onProgress: (received, total) => { if (progressBar) progressBar.update(received, total); },
+      });
 
-    return [{
-      file: fileName,
-      size: formatSize(result.size),
-      status: result.success ? '下载完成' : `失败: ${result.error}`,
-      path: result.success ? path.resolve(destPath) : '-',
-    }];
+      if (progressBar) progressBar.complete(result.success);
+      tracker.onFileComplete(result.success);
+
+      return [{
+        file: fileName,
+        size: formatSize(result.size),
+        status: result.success ? '下载完成' : `失败: ${result.error}`,
+      }];
+    }
+
+    // Directory download — recursively list all files
+    const dirName = info.name || path.basename(remotePath);
+    console.error(`正在扫描目录: ${dirName} ...`);
+    const allFiles = await listAllFiles(page, remotePath);
+
+    if (allFiles.length === 0) {
+      return [{ file: dirName, size: '-', status: '空目录，无文件可下载' }];
+    }
+
+    console.error(`共 ${allFiles.length} 个文件，开始下载...`);
+    const tracker = new DownloadProgressTracker(allFiles.length, true);
+    const results: Array<{ file: string; size: string; status: string }> = [];
+    const baseDir = remotePath; // strip this prefix to get relative paths
+
+    for (let i = 0; i < allFiles.length; i++) {
+      const f = allFiles[i];
+      // Preserve directory structure: /sata1/.../dir/sub/file.txt → dir/sub/file.txt
+      const relativePath = f.path.startsWith(baseDir)
+        ? f.path.slice(baseDir.length + 1)
+        : f.name;
+      const localDir = path.join(outputDir, dirName, path.dirname(relativePath));
+      fs.mkdirSync(localDir, { recursive: true });
+      const destPath = path.join(outputDir, dirName, relativePath);
+      const displayName = relativePath;
+
+      const downloadParams = new URLSearchParams({ path: f.path, webagent: 'v2', request_purpose: '5' });
+      const downloadUrl = `https://${ZCONNECT_DOMAIN}/v2/file/download?${downloadParams.toString()}`;
+
+      const progressBar = tracker.onFileStart(displayName, i);
+      const result = await httpDownload(downloadUrl, destPath, {
+        cookies: cookieString,
+        timeout: 600000,
+        onProgress: (received, total) => { if (progressBar) progressBar.update(received, total); },
+      });
+
+      if (progressBar) progressBar.complete(result.success);
+      tracker.onFileComplete(result.success);
+
+      results.push({
+        file: displayName,
+        size: formatSize(result.size),
+        status: result.success ? '下载完成' : `失败: ${result.error}`,
+      });
+    }
+
+    return results;
   },
 });
