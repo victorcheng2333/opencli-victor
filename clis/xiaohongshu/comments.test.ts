@@ -48,7 +48,7 @@ describe('xiaohongshu comments', () => {
     expect(result[1]).toMatchObject({ rank: 2, author: 'Bob', text: 'Very helpful', likes: 0 });
   });
 
-  it('strips /explore/ prefix from full URL input', async () => {
+  it('preserves full /explore/ URL as-is for navigation', async () => {
     const page = createPageMock({
       loginWall: false,
       results: [{ author: 'Alice', text: 'Nice', likes: 1, time: '2024-01-01', is_reply: false, reply_to: '' }],
