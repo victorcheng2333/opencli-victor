@@ -89,7 +89,6 @@ export type EarlyHintReason =
   | 'no-viable-candidate';
 
 export interface EarlyHint {
-  version: 1;
   stage: 'explore' | 'synthesize' | 'cascade';
   continue: boolean;
   reason: EarlyHintReason;
@@ -104,7 +103,6 @@ export interface EarlyHint {
 }
 
 export type EarlyHintHandler = (hint: EarlyHint) => void;
-export const GENERATE_OUTCOME_VERSION = 1 as const;
 
 // ── Outcome Types ─────────────────────────────────────────────────────────────
 
@@ -143,7 +141,6 @@ export interface EscalationContext {
 }
 
 export type GenerateOutcome = {
-  version: typeof GENERATE_OUTCOME_VERSION;
   status: 'success' | 'blocked' | 'needs-human-check';
 
   // success path
@@ -511,7 +508,6 @@ function classifySessionError(
 ): GenerateOutcome {
   if (error instanceof BrowserConnectError) {
     return {
-      version: GENERATE_OUTCOME_VERSION,
       status: 'blocked',
       reason: 'execution-environment-unavailable',
       stage: 'verify',
@@ -522,7 +518,6 @@ function classifySessionError(
   }
   if (error instanceof AuthRequiredError) {
     return {
-      version: GENERATE_OUTCOME_VERSION,
       status: 'blocked',
       reason: 'auth-too-complex',
       stage: 'verify',
@@ -532,7 +527,6 @@ function classifySessionError(
     };
   }
   return {
-    version: GENERATE_OUTCOME_VERSION,
     status: 'needs-human-check',
     escalation: buildEscalation('verify', 'verify-inconclusive', summary, site, {
       reusability: 'unverified-candidate',
@@ -570,14 +564,12 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
   // ── Early hint: explore result ──────────────────────────────────────────
   if (exploreResult.api_endpoint_count === 0) {
     opts.onEarlyHint?.({
-      version: 1,
       stage: 'explore',
       continue: false,
       reason: 'no-viable-api-surface',
       confidence: 'high',
     });
     return {
-      version: GENERATE_OUTCOME_VERSION,
       status: 'blocked',
       reason: 'no-viable-api-surface',
       stage: 'explore',
@@ -587,7 +579,6 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
     };
   }
   opts.onEarlyHint?.({
-    version: 1,
     stage: 'explore',
     continue: true,
     reason: 'api-surface-looks-viable',
@@ -597,14 +588,12 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
   // ── Early hint: synthesize result ───────────────────────────────────────
   if (!selected || synthesizeResult.candidate_count === 0) {
     opts.onEarlyHint?.({
-      version: 1,
       stage: 'synthesize',
       continue: false,
       reason: 'no-viable-candidate',
       confidence: 'high',
     });
     return {
-      version: GENERATE_OUTCOME_VERSION,
       status: 'blocked',
       reason: 'no-viable-candidate',
       stage: 'synthesize',
@@ -621,14 +610,12 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
 
   if (!context.endpoint) {
     opts.onEarlyHint?.({
-      version: 1,
       stage: 'synthesize',
       continue: false,
       reason: 'no-viable-candidate',
       confidence: 'medium',
     });
     return {
-      version: GENERATE_OUTCOME_VERSION,
       status: 'blocked',
       reason: 'no-viable-candidate',
       stage: 'synthesize',
@@ -647,7 +634,6 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
   // No P2 hint is emitted — this is a P1-only decision per design guardrail.
   if (unsupportedArgs.length > 0) {
     return {
-      version: GENERATE_OUTCOME_VERSION,
       status: 'needs-human-check',
       escalation: buildEscalation('synthesize', 'unsupported-required-args', selected, bundle.manifest.site, {
         reusability: 'unverified-candidate',
@@ -660,7 +646,6 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
   }
 
   opts.onEarlyHint?.({
-    version: 1,
     stage: 'synthesize',
     continue: true,
     reason: 'candidate-ready-for-verify',
@@ -682,15 +667,13 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
       const bestStrategy = await probeCandidateStrategy(page, context.endpoint!.url);
       if (!bestStrategy) {
         opts.onEarlyHint?.({
-          version: 1,
           stage: 'cascade',
           continue: false,
           reason: 'auth-too-complex',
           confidence: 'high',
         });
         return {
-          version: GENERATE_OUTCOME_VERSION,
-          status: 'blocked',
+              status: 'blocked',
           reason: 'auth-too-complex' as StopReason,
           stage: 'cascade' as Stage,
           confidence: 'high' as Confidence,
@@ -700,7 +683,6 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
       }
 
       opts.onEarlyHint?.({
-        version: 1,
         stage: 'cascade',
         continue: true,
         reason: 'candidate-ready-for-verify',
@@ -733,8 +715,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
           ? await writeVerifiedArtifact(candidate, exploreResult.out_dir, buildMetadata())
           : await registerVerifiedAdapter(candidate, buildMetadata());
         return {
-          version: GENERATE_OUTCOME_VERSION,
-          status: 'success' as const,
+              status: 'success' as const,
           adapter: {
             site: candidate.site,
             name: candidate.name,
@@ -760,8 +741,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
       if ('terminal' in firstAttempt) {
         if (firstAttempt.terminal === 'blocked') {
           return {
-            version: GENERATE_OUTCOME_VERSION,
-            status: 'blocked',
+                  status: 'blocked',
             reason: firstAttempt.reason ?? 'execution-environment-unavailable',
             stage: 'verify' as Stage,
             confidence: 'high' as Confidence,
@@ -770,8 +750,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
           };
         }
         return {
-          version: GENERATE_OUTCOME_VERSION,
-          status: 'needs-human-check',
+              status: 'needs-human-check',
           escalation: buildEscalation(
             'verify',
             firstAttempt.escalationReason ?? 'verify-inconclusive',
@@ -793,8 +772,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
       if (!repaired) {
         const escalationReason = mapVerifyFailureToEscalation(firstAttempt.reason);
         return {
-          version: GENERATE_OUTCOME_VERSION,
-          status: 'needs-human-check',
+              status: 'needs-human-check',
           escalation: buildEscalation('verify', escalationReason, selected, bundle.manifest.site, {
             reusability: 'unverified-candidate',
             confidence: 'medium',
@@ -826,8 +804,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
           ? await writeVerifiedArtifact(repaired, exploreResult.out_dir, buildMetadata())
           : await registerVerifiedAdapter(repaired, buildMetadata());
         return {
-          version: GENERATE_OUTCOME_VERSION,
-          status: 'success' as const,
+              status: 'success' as const,
           adapter: {
             site: repaired.site,
             name: repaired.name,
@@ -845,8 +822,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
       if ('terminal' in secondAttempt) {
         if (secondAttempt.terminal === 'blocked') {
           return {
-            version: GENERATE_OUTCOME_VERSION,
-            status: 'blocked',
+                  status: 'blocked',
             reason: secondAttempt.reason ?? 'execution-environment-unavailable',
             stage: 'fallback' as Stage,
             confidence: 'high' as Confidence,
@@ -855,8 +831,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
           };
         }
         return {
-          version: GENERATE_OUTCOME_VERSION,
-          status: 'needs-human-check',
+              status: 'needs-human-check',
           escalation: buildEscalation(
             'fallback',
             secondAttempt.escalationReason ?? 'verify-inconclusive',
@@ -873,8 +848,7 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
       // ── Repair exhausted ────────────────────────────────────────────────
       const escalationReason = mapVerifyFailureToEscalation(secondAttempt.reason);
       return {
-        version: GENERATE_OUTCOME_VERSION,
-        status: 'needs-human-check',
+          status: 'needs-human-check',
         escalation: buildEscalation('fallback', escalationReason, selected, bundle.manifest.site, {
           reusability: 'unverified-candidate',
           confidence: 'low',
@@ -894,7 +868,6 @@ export async function generateVerifiedFromUrl(opts: GenerateVerifiedOptions): Pr
 export function renderGenerateVerifiedSummary(result: GenerateOutcome): string {
   const lines = [
     `opencli generate: ${result.status.toUpperCase()}`,
-    `Schema version: ${result.version}`,
   ];
 
   if (result.status === 'success' && result.adapter) {

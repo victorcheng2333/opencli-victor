@@ -113,7 +113,6 @@ describe('generateVerifiedFromUrl', () => {
       noRegister: true,
     });
 
-    expect(result.version).toBe(1);
     expect(result.status).toBe('blocked');
     expect(result.reason).toBe('no-viable-api-surface');
     expect(result.stage).toBe('explore');
@@ -313,7 +312,6 @@ describe('generateVerifiedFromUrl', () => {
     expect(mockExecutePipeline).toHaveBeenCalledTimes(1);
     expect(mockRegisterCommand).toHaveBeenCalledTimes(1);
 
-    expect(result.version).toBe(1);
     expect(result.status).toBe('success');
     expect(result.adapter).toBeDefined();
     expect(result.adapter!.command).toBe('demo/search');
@@ -503,7 +501,6 @@ describe('generateVerifiedFromUrl', () => {
     expect(mockExecutePipeline.mock.calls[1]?.[1]).toEqual(expect.arrayContaining([{ select: 'data.items' }]));
 
     // Verify structured escalation contract
-    expect(result.version).toBe(1);
     expect(result.status).toBe('needs-human-check');
     expect(result.escalation).toBeDefined();
     expect(result.escalation!.stage).toBe('fallback');
@@ -592,7 +589,7 @@ describe('generateVerifiedFromUrl', () => {
 
   // ── Contract shape validation ─────────────────────────────────────────────
 
-  it('all outcome statuses include version, status, and stats', async () => {
+  it('all outcome statuses include status and stats', async () => {
     // Test the blocked path - simplest to set up
     mockExploreUrl.mockResolvedValue({
       site: 'demo',
@@ -627,7 +624,6 @@ describe('generateVerifiedFromUrl', () => {
     });
 
     // Every outcome must have these three fields
-    expect(result).toHaveProperty('version', 1);
     expect(result).toHaveProperty('status');
     expect(result).toHaveProperty('stats');
     expect(['success', 'blocked', 'needs-human-check']).toContain(result.status);
@@ -680,7 +676,6 @@ describe('generateVerifiedFromUrl', () => {
 
     expect(hints).toHaveLength(1);
     expect(hints[0]).toEqual({
-      version: 1,
       stage: 'explore',
       continue: false,
       reason: 'no-viable-api-surface',
