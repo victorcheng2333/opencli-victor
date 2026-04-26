@@ -4,268 +4,395 @@
  * All browser operations are ultimately 'exec' (JS evaluation via CDP)
  * plus a few native Chrome Extension APIs (tabs, cookies, navigate).
  *
- * IMPORTANT: After goto(), we remember the tabId returned by the navigate
- * action and pass it to all subsequent commands. This avoids the issue
- * where resolveTabId() in the extension picks a chrome:// or
- * chrome-extension:// tab that can't be debugged.
+ * IMPORTANT: After goto(), we remember the page identity (targetId) returned
+ * by the navigate action and pass it to all subsequent commands. This ensures
+ * page-scoped operations target the correct page without guessing.
  */
 
-import { formatSnapshot } from '../snapshotFormatter.js';
-import type { BrowserCookie, IPage, ScreenshotOptions, SnapshotOptions, WaitOptions } from '../types.js';
-import { sendCommand } from './daemon-client.js';
+import type { BrowserCookie, ScreenshotOptions } from '../types.js';
+import { sendCommand, sendCommandFull } from './daemon-client.js';
 import { wrapForEval } from './utils.js';
-import { generateSnapshotJs, scrollToRefJs, getFormStateJs } from './dom-snapshot.js';
-import {
-  clickJs,
-  typeTextJs,
-  pressKeyJs,
-  waitForTextJs,
-  scrollJs,
-  autoScrollJs,
-  networkRequestsJs,
-} from './dom-helpers.js';
+import { saveBase64ToFile } from '../utils.js';
+import { generateStealthJs } from './stealth.js';
+import { waitForDomStableJs } from './dom-helpers.js';
+import { BasePage } from './base-page.js';
+import { classifyBrowserError } from './errors.js';
+import { log } from '../logger.js';
+
+function isUnsupportedNetworkCaptureError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  const normalized = message.toLowerCase();
+  return (normalized.includes('unknown action') && normalized.includes('network-capture'))
+    || (normalized.includes('network capture') && normalized.includes('not supported'));
+}
 
 /**
  * Page — implements IPage by talking to the daemon via HTTP.
  */
-export class Page implements IPage {
-  constructor(private readonly workspace: string = 'default') {}
+export class Page extends BasePage {
+  private readonly _idleTimeout: number | undefined;
 
-  /** Active tab ID, set after navigate and used in all subsequent commands */
-  private _tabId: number | undefined;
-
-  /** Helper: spread tabId into command params if we have one */
-  private _tabOpt(): { tabId: number } | Record<string, never> {
-    return this._tabId !== undefined ? { tabId: this._tabId } : {};
+  constructor(private readonly workspace: string = 'default', idleTimeout?: number) {
+    super();
+    this._idleTimeout = idleTimeout;
   }
 
-  private _workspaceOpt(): { workspace: string } {
-    return { workspace: this.workspace };
+  /** Active page identity (targetId), set after navigate and used in all subsequent commands */
+  private _page: string | undefined;
+  private _networkCaptureUnsupported = false;
+  private _networkCaptureWarned = false;
+
+  /** Helper: spread workspace into command params */
+  private _wsOpt(): { workspace: string; idleTimeout?: number } {
+    return { workspace: this.workspace, ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }) };
+  }
+
+  /** Helper: spread workspace + page identity into command params */
+  private _cmdOpts(): Record<string, unknown> {
+    return {
+      workspace: this.workspace,
+      ...(this._page !== undefined && { page: this._page }),
+      ...(this._idleTimeout != null && { idleTimeout: this._idleTimeout }),
+    };
   }
 
   async goto(url: string, options?: { waitUntil?: 'load' | 'none'; settleMs?: number }): Promise<void> {
-    const result = await sendCommand('navigate', {
+    const result = await sendCommandFull('navigate', {
       url,
-      ...this._workspaceOpt(),
-      ...this._tabOpt(),
-    }) as { tabId?: number };
-    // Remember the tabId for subsequent exec calls
-    if (result?.tabId) {
-      this._tabId = result.tabId;
+      ...this._cmdOpts(),
+    });
+    // Remember the page identity (targetId) for subsequent calls
+    if (result.page) {
+      this._page = result.page;
     }
-    // Post-load settle: the extension already waits for tab.status === 'complete',
-    // but SPA frameworks (React/Vue) need extra time to render after DOM load.
+    this._lastUrl = url;
+    // Inject stealth + settle in a single round-trip instead of two sequential exec calls.
+    // The stealth guard flag prevents double-injection; settle uses DOM stability detection.
     if (options?.waitUntil !== 'none') {
-      const settleMs = options?.settleMs ?? 1000;
-      await new Promise(resolve => setTimeout(resolve, settleMs));
+      const maxMs = options?.settleMs ?? 1000;
+      const combinedCode = `${generateStealthJs()};\n${waitForDomStableJs(maxMs, Math.min(500, maxMs))}`;
+      const combinedOpts = {
+        code: combinedCode,
+        ...this._cmdOpts(),
+      };
+      try {
+        await sendCommand('exec', combinedOpts);
+      } catch (err) {
+        const advice = classifyBrowserError(err);
+        // Only settle-retry on target navigation (SPA client-side redirects).
+        // Extension/daemon errors are already retried by sendCommandRaw —
+        // retrying them here would silently swallow real failures.
+        if (advice.kind !== 'target-navigation') throw err;
+        try {
+          await new Promise((r) => setTimeout(r, advice.delayMs));
+          await sendCommand('exec', combinedOpts);
+        } catch (retryErr) {
+          if (classifyBrowserError(retryErr).kind !== 'target-navigation') throw retryErr;
+        }
+      }
+    } else {
+      // Even with waitUntil='none', still inject stealth (best-effort)
+      try {
+        await sendCommand('exec', {
+          code: generateStealthJs(),
+          ...this._cmdOpts(),
+        });
+      } catch {
+        // Non-fatal: stealth is best-effort
+      }
     }
+  }
+
+  /** Get the active page identity (targetId) */
+  getActivePage(): string | undefined {
+    return this._page;
+  }
+
+  /** Bind this Page instance to a specific page identity (targetId). */
+  setActivePage(page?: string): void {
+    this._page = page;
+    this._lastUrl = null;
+  }
+  private _markUnsupportedNetworkCapture(): void {
+    this._networkCaptureUnsupported = true;
+    if (this._networkCaptureWarned) return;
+    this._networkCaptureWarned = true;
+    log.warn(
+      'Browser Bridge extension does not support network capture; continuing without it. ' +
+      'Explore output may miss API endpoints until you reload or reinstall the extension.',
+    );
+  }
+
+  async evaluate(js: string): Promise<unknown> {
+    const code = wrapForEval(js);
+    try {
+      return await sendCommand('exec', { code, ...this._cmdOpts() });
+    } catch (err) {
+      const advice = classifyBrowserError(err);
+      if (advice.kind !== 'target-navigation') throw err;
+      await new Promise((resolve) => setTimeout(resolve, advice.delayMs));
+      return sendCommand('exec', { code, ...this._cmdOpts() });
+    }
+  }
+
+  async getCookies(opts: { domain?: string; url?: string } = {}): Promise<BrowserCookie[]> {
+    const result = await sendCommand('cookies', { ...this._wsOpt(), ...opts });
+    return Array.isArray(result) ? result : [];
   }
 
   /** Close the automation window in the extension */
   async closeWindow(): Promise<void> {
     try {
-      await sendCommand('close-window', { ...this._workspaceOpt() });
+      await sendCommand('close-window', { ...this._wsOpt() });
     } catch {
       // Window may already be closed or daemon may be down
-    }
-  }
-
-  async evaluate(js: string): Promise<unknown> {
-    const code = wrapForEval(js);
-    return sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
-  }
-
-  async getCookies(opts: { domain?: string; url?: string } = {}): Promise<BrowserCookie[]> {
-    const result = await sendCommand('cookies', { ...this._workspaceOpt(), ...opts });
-    return Array.isArray(result) ? result : [];
-  }
-
-  async snapshot(opts: SnapshotOptions = {}): Promise<unknown> {
-    // Primary: use the advanced DOM snapshot engine with multi-layer pruning
-    const snapshotJs = generateSnapshotJs({
-      viewportExpand: opts.viewportExpand ?? 800,
-      maxDepth: Math.max(1, Math.min(Number(opts.maxDepth) || 50, 200)),
-      interactiveOnly: opts.interactive ?? false,
-      maxTextLength: opts.maxTextLength ?? 120,
-      includeScrollInfo: true,
-      bboxDedup: true,
-    });
-
-    try {
-      const result = await sendCommand('exec', { code: snapshotJs, ...this._workspaceOpt(), ...this._tabOpt() });
-      // The advanced engine already produces a clean, pruned, LLM-friendly output.
-      // Do NOT pass through formatSnapshot — its format is incompatible.
-      return result;
-    } catch {
-      // Fallback: basic DOM snapshot (original implementation)
-      return this._basicSnapshot(opts);
-    }
-  }
-
-  /** Fallback basic snapshot — original buildTree approach */
-  private async _basicSnapshot(opts: Pick<SnapshotOptions, 'interactive' | 'compact' | 'maxDepth' | 'raw'> = {}): Promise<unknown> {
-    const maxDepth = Math.max(1, Math.min(Number(opts.maxDepth) || 50, 200));
-    const code = `
-      (async () => {
-        function buildTree(node, depth) {
-          if (depth > ${maxDepth}) return '';
-          const role = node.getAttribute?.('role') || node.tagName?.toLowerCase() || 'generic';
-          const name = node.getAttribute?.('aria-label') || node.getAttribute?.('alt') || node.textContent?.trim().slice(0, 80) || '';
-          const isInteractive = ['a', 'button', 'input', 'select', 'textarea'].includes(node.tagName?.toLowerCase()) || node.getAttribute?.('tabindex') != null;
-
-          ${opts.interactive ? 'if (!isInteractive && !node.children?.length) return "";' : ''}
-
-          let indent = '  '.repeat(depth);
-          let line = indent + role;
-          if (name) line += ' "' + name.replace(/"/g, '\\\\\\"') + '"';
-          if (node.tagName?.toLowerCase() === 'a' && node.href) line += ' [' + node.href + ']';
-          if (node.tagName?.toLowerCase() === 'input') line += ' [' + (node.type || 'text') + ']';
-
-          let result = line + '\\n';
-          if (node.children) {
-            for (const child of node.children) {
-              result += buildTree(child, depth + 1);
-            }
-          }
-          return result;
-        }
-        return buildTree(document.body, 0);
-      })()
-    `;
-    const raw = await sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
-    if (opts.raw) return raw;
-    if (typeof raw === 'string') return formatSnapshot(raw, opts);
-    return raw;
-  }
-
-  async click(ref: string): Promise<void> {
-    const code = clickJs(ref);
-    await sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
-  }
-
-  async typeText(ref: string, text: string): Promise<void> {
-    const code = typeTextJs(ref, text);
-    await sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
-  }
-
-  async pressKey(key: string): Promise<void> {
-    const code = pressKeyJs(key);
-    await sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
-  }
-
-  async scrollTo(ref: string): Promise<unknown> {
-    const code = scrollToRefJs(ref);
-    return sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
-  }
-
-  async getFormState(): Promise<Record<string, unknown>> {
-    const code = getFormStateJs();
-    return (await sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() })) as Record<string, unknown>;
-  }
-
-  async wait(options: number | WaitOptions): Promise<void> {
-    if (typeof options === 'number') {
-      await new Promise(resolve => setTimeout(resolve, options * 1000));
-      return;
-    }
-    if (options.time) {
-      await new Promise(resolve => setTimeout(resolve, options.time! * 1000));
-      return;
-    }
-    if (options.text) {
-      const timeout = (options.timeout ?? 30) * 1000;
-      const code = waitForTextJs(options.text, timeout);
-      await sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
+    } finally {
+      this._page = undefined;
+      this._lastUrl = null;
+      this._networkCaptureUnsupported = false;
+      this._networkCaptureWarned = false;
     }
   }
 
   async tabs(): Promise<unknown[]> {
-    const result = await sendCommand('tabs', { op: 'list', ...this._workspaceOpt() });
+    const result = await sendCommand('tabs', { op: 'list', ...this._wsOpt() });
     return Array.isArray(result) ? result : [];
   }
 
-  async closeTab(index?: number): Promise<void> {
-    await sendCommand('tabs', { op: 'close', ...this._workspaceOpt(), ...(index !== undefined ? { index } : {}) });
+  async newTab(url?: string): Promise<string | undefined> {
+    const result = await sendCommandFull('tabs', {
+      op: 'new',
+      ...(url !== undefined && { url }),
+      ...this._wsOpt(),
+    });
+    this._lastUrl = null;
+    return result.page;
   }
 
-  async newTab(): Promise<void> {
-    await sendCommand('tabs', { op: 'new', ...this._workspaceOpt() });
+  async closeTab(target?: number | string): Promise<void> {
+    const params: Record<string, unknown> = { op: 'close', ...this._wsOpt() };
+    if (typeof target === 'number') params.index = target;
+    else if (typeof target === 'string') params.page = target;
+    else if (this._page !== undefined) params.page = this._page;
+
+    const result = await sendCommand('tabs', params) as { closed?: string } | null;
+    const closedPage = typeof result?.closed === 'string' ? result.closed : undefined;
+
+    if ((closedPage && closedPage === this._page) || (!closedPage && (target === undefined || target === this._page))) {
+      this._page = undefined;
+      this._lastUrl = null;
+    }
   }
 
-  async selectTab(index: number): Promise<void> {
-    await sendCommand('tabs', { op: 'select', index, ...this._workspaceOpt() });
-  }
-
-  async networkRequests(includeStatic: boolean = false): Promise<unknown[]> {
-    const code = networkRequestsJs(includeStatic);
-    const result = await sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
-    return Array.isArray(result) ? result : [];
-  }
-
-  /**
-   * Console messages are not available in lightweight daemon mode.
-   * Would require CDP Runtime.consoleAPICalled event listener.
-   * @returns Always returns empty array.
-   */
-  async consoleMessages(_level: string = 'info'): Promise<unknown[]> {
-    return [];
+  async selectTab(target: number | string): Promise<void> {
+    const result = await sendCommandFull('tabs', {
+      op: 'select',
+      ...(typeof target === 'number' ? { index: target } : { page: target }),
+      ...this._wsOpt(),
+    });
+    if (result.page) this._page = result.page;
+    this._lastUrl = null;
   }
 
   /**
    * Capture a screenshot via CDP Page.captureScreenshot.
-   * @param options.format - 'png' (default) or 'jpeg'
-   * @param options.quality - JPEG quality 0-100
-   * @param options.fullPage - capture full scrollable page
-   * @param options.path - save to file path (returns base64 if omitted)
    */
   async screenshot(options: ScreenshotOptions = {}): Promise<string> {
     const base64 = await sendCommand('screenshot', {
-      ...this._workspaceOpt(),
+      ...this._cmdOpts(),
       format: options.format,
       quality: options.quality,
       fullPage: options.fullPage,
-      ...this._tabOpt(),
     }) as string;
 
     if (options.path) {
-      const fs = await import('node:fs');
-      const path = await import('node:path');
-      const dir = path.dirname(options.path);
-      await fs.promises.mkdir(dir, { recursive: true });
-      await fs.promises.writeFile(options.path, Buffer.from(base64, 'base64'));
+      await saveBase64ToFile(base64, options.path);
     }
 
     return base64;
   }
 
-  async scroll(direction: string = 'down', amount: number = 500): Promise<void> {
-    const code = scrollJs(direction, amount);
-    await sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
+  async startNetworkCapture(pattern: string = ''): Promise<boolean> {
+    if (this._networkCaptureUnsupported) return false;
+    try {
+      await sendCommand('network-capture-start', {
+        pattern,
+        ...this._cmdOpts(),
+      });
+      return true;
+    } catch (err) {
+      if (!isUnsupportedNetworkCaptureError(err)) throw err;
+      this._markUnsupportedNetworkCapture();
+      return false;
+    }
   }
 
-  async autoScroll(options: { times?: number; delayMs?: number } = {}): Promise<void> {
-    const times = options.times ?? 3;
-    const delayMs = options.delayMs ?? 2000;
-    const code = autoScrollJs(times, delayMs);
-    await sendCommand('exec', { code, ...this._workspaceOpt(), ...this._tabOpt() });
+  async readNetworkCapture(): Promise<unknown[]> {
+    if (this._networkCaptureUnsupported) return [];
+    try {
+      const result = await sendCommand('network-capture-read', {
+        ...this._cmdOpts(),
+      });
+      return Array.isArray(result) ? result : [];
+    } catch (err) {
+      if (!isUnsupportedNetworkCaptureError(err)) throw err;
+      this._markUnsupportedNetworkCapture();
+      return [];
+    }
+  }
+  /**
+   * Set local file paths on a file input element via CDP DOM.setFileInputFiles.
+   * Chrome reads the files directly from the local filesystem, avoiding the
+   * payload size limits of base64-in-evaluate.
+   */
+  async setFileInput(files: string[], selector?: string): Promise<void> {
+    const result = await sendCommand('set-file-input', {
+      files,
+      selector,
+      ...this._cmdOpts(),
+    }) as { count?: number };
+    if (!result?.count) {
+      throw new Error('setFileInput returned no count — command may not be supported by the extension');
+    }
   }
 
-  async installInterceptor(pattern: string): Promise<void> {
-    const { generateInterceptorJs } = await import('../interceptor.js');
-    // Must use evaluate() so wrapForEval() converts the arrow function into an IIFE;
-    // sendCommand('exec') sends the code as-is, and CDP never executes a bare arrow.
-    await this.evaluate(generateInterceptorJs(JSON.stringify(pattern), {
-      arrayName: '__opencli_xhr',
-      patchGuard: '__opencli_interceptor_patched',
-    }));
+  async insertText(text: string): Promise<void> {
+    const result = await sendCommand('insert-text', {
+      text,
+      ...this._cmdOpts(),
+    }) as { inserted?: boolean };
+    if (!result?.inserted) {
+      throw new Error('insertText returned no inserted flag — command may not be supported by the extension');
+    }
   }
 
-  async getInterceptedRequests(): Promise<unknown[]> {
-    const { generateReadInterceptedJs } = await import('../interceptor.js');
-    // Same as installInterceptor: must go through evaluate() for IIFE wrapping
-    const result = await this.evaluate(generateReadInterceptedJs('__opencli_xhr'));
+  async frames(): Promise<Array<{ index: number; frameId: string; url: string; name: string }>> {
+    const result = await sendCommand('frames', { ...this._cmdOpts() });
     return Array.isArray(result) ? result : [];
   }
-}
 
-// (End of file)
+  async evaluateInFrame(js: string, frameIndex: number): Promise<unknown> {
+    const code = wrapForEval(js);
+    return sendCommand('exec', { code, frameIndex, ...this._cmdOpts() });
+  }
+
+  async cdp(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+    return sendCommand('cdp', {
+      cdpMethod: method,
+      cdpParams: params,
+      ...this._cmdOpts(),
+    });
+  }
+
+  /** CDP native click fallback — called when JS el.click() fails */
+  protected override async tryNativeClick(x: number, y: number): Promise<boolean> {
+    try {
+      await this.nativeClick(x, y);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Precise click using DOM.getContentQuads/getBoxModel for inline elements */
+  async clickWithQuads(ref: string): Promise<void> {
+    const safeRef = JSON.stringify(ref);
+    const cssSelector = `[data-opencli-ref="${ref.replace(/"/g, '\\"')}"]`;
+
+    // Scroll element into view first
+    await this.evaluate(`
+      (() => {
+        const el = document.querySelector('[data-opencli-ref="' + ${safeRef} + '"]');
+        if (el) el.scrollIntoView({ behavior: 'instant', block: 'center' });
+        return !!el;
+      })()
+    `);
+
+    try {
+      // Find DOM node via CDP
+      const doc = await this.cdp('DOM.getDocument', {}) as { root: { nodeId: number } };
+      const result = await this.cdp('DOM.querySelectorAll', {
+        nodeId: doc.root.nodeId,
+        selector: cssSelector,
+      }) as { nodeIds: number[] };
+
+      if (!result.nodeIds?.length) throw new Error('DOM node not found');
+
+      const nodeId = result.nodeIds[0];
+
+      // Try getContentQuads first (precise for inline elements)
+      try {
+        const quads = await this.cdp('DOM.getContentQuads', { nodeId }) as { quads: number[][] };
+        if (quads.quads?.length) {
+          const q = quads.quads[0];
+          const cx = (q[0] + q[2] + q[4] + q[6]) / 4;
+          const cy = (q[1] + q[3] + q[5] + q[7]) / 4;
+          await this.nativeClick(Math.round(cx), Math.round(cy));
+          return;
+        }
+      } catch { /* fallthrough */ }
+
+      // Try getBoxModel
+      try {
+        const box = await this.cdp('DOM.getBoxModel', { nodeId }) as { model: { content: number[] } };
+        if (box.model?.content) {
+          const c = box.model.content;
+          const cx = (c[0] + c[2] + c[4] + c[6]) / 4;
+          const cy = (c[1] + c[3] + c[5] + c[7]) / 4;
+          await this.nativeClick(Math.round(cx), Math.round(cy));
+          return;
+        }
+      } catch { /* fallthrough */ }
+    } catch { /* fallthrough */ }
+
+    // Final fallback: regular click
+    await this.evaluate(`
+      (() => {
+        const el = document.querySelector('[data-opencli-ref="' + ${safeRef} + '"]');
+        if (!el) throw new Error('Element not found: ' + ${safeRef});
+        el.click();
+        return 'clicked';
+      })()
+    `);
+  }
+
+  async nativeClick(x: number, y: number): Promise<void> {
+    await this.cdp('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x, y,
+      button: 'left',
+      clickCount: 1,
+    });
+    await this.cdp('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x, y,
+      button: 'left',
+      clickCount: 1,
+    });
+  }
+
+  async nativeType(text: string): Promise<void> {
+    // Use Input.insertText for reliable Unicode/CJK text insertion
+    await this.cdp('Input.insertText', { text });
+  }
+
+  async nativeKeyPress(key: string, modifiers: string[] = []): Promise<void> {
+    let modifierFlags = 0;
+    for (const mod of modifiers) {
+      if (mod === 'Alt') modifierFlags |= 1;
+      if (mod === 'Ctrl') modifierFlags |= 2;
+      if (mod === 'Meta') modifierFlags |= 4;
+      if (mod === 'Shift') modifierFlags |= 8;
+    }
+    await this.cdp('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key,
+      modifiers: modifierFlags,
+    });
+    await this.cdp('Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key,
+      modifiers: modifierFlags,
+    });
+  }
+}

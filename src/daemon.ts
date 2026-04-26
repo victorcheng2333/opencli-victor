@@ -5,28 +5,40 @@
  *   CLI → HTTP POST /command → daemon → WebSocket → Extension
  *   Extension → WebSocket result → daemon → HTTP response → CLI
  *
+ * Security (defense-in-depth against browser-based CSRF):
+ *   1. Origin check — reject HTTP/WS from non chrome-extension:// origins
+ *   2. Custom header — require X-OpenCLI header (browsers can't send it
+ *      without CORS preflight, which we deny)
+ *   3. No CORS headers on command endpoints — only /ping is readable from the
+ *      Browser Bridge extension origin so the extension can probe daemon reachability
+ *   4. Body size limit — 1 MB max to prevent OOM
+ *   5. WebSocket verifyClient — reject upgrade before connection is established
+ *
  * Lifecycle:
  *   - Auto-spawned by opencli on first browser command
- *   - Auto-exits after 5 minutes of idle
+ *   - Persistent — stays alive until explicit shutdown, SIGTERM, or uninstall
  *   - Listens on localhost:19825
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, WebSocket, type RawData } from 'ws';
+import { DEFAULT_DAEMON_PORT } from './constants.js';
+import { EXIT_CODES } from './errors.js';
+import { log } from './logger.js';
+import { PKG_VERSION } from './version.js';
 
-const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? '19825', 10);
-const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+const PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
 
 // ─── State ───────────────────────────────────────────────────────────
 
 let extensionWs: WebSocket | null = null;
+let extensionVersion: string | null = null;
+let extensionCompatRange: string | null = null;
 const pending = new Map<string, {
   resolve: (data: unknown) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
 }>();
-let idleTimer: ReturnType<typeof setTimeout> | null = null;
-
 // Extension log ring buffer
 interface LogEntry { level: string; msg: string; ts: number; }
 const LOG_BUFFER_SIZE = 200;
@@ -37,46 +49,103 @@ function pushLog(entry: LogEntry): void {
   if (logBuffer.length > LOG_BUFFER_SIZE) logBuffer.shift();
 }
 
-// ─── Idle auto-exit ──────────────────────────────────────────────────
-
-function resetIdleTimer(): void {
-  if (idleTimer) clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => {
-    console.error('[daemon] Idle timeout, shutting down');
-    process.exit(0);
-  }, IDLE_TIMEOUT);
-}
-
 // ─── HTTP Server ─────────────────────────────────────────────────────
+
+const MAX_BODY = 1024 * 1024; // 1 MB — commands are tiny; this prevents OOM
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on('data', (c: Buffer) => chunks.push(c));
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
-    req.on('error', reject);
+    let size = 0;
+    let aborted = false;
+    req.on('data', (c: Buffer) => {
+      size += c.length;
+      if (size > MAX_BODY) { aborted = true; req.destroy(); reject(new Error('Body too large')); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => { if (!aborted) resolve(Buffer.concat(chunks).toString('utf-8')); });
+    req.on('error', (err) => { if (!aborted) reject(err); });
   });
 }
 
-function jsonResponse(res: ServerResponse, status: number, data: unknown): void {
-  res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+function jsonResponse(
+  res: ServerResponse,
+  status: number,
+  data: unknown,
+  extraHeaders?: Record<string, string>,
+): void {
+  res.writeHead(status, { 'Content-Type': 'application/json', ...extraHeaders });
   res.end(JSON.stringify(data));
 }
 
+export function getResponseCorsHeaders(pathname: string, origin?: string): Record<string, string> | undefined {
+  if (pathname !== '/ping') return undefined;
+  if (!origin || !origin.startsWith('chrome-extension://')) return undefined;
+  return {
+    'Access-Control-Allow-Origin': origin,
+    Vary: 'Origin',
+  };
+}
+
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+  // ─── Security: Origin & custom-header check ──────────────────────
+  // Block browser-based CSRF: browsers always send an Origin header on
+  // cross-origin requests.  Node.js CLI fetch does NOT send Origin, so
+  // legitimate CLI requests pass through.  Chrome Extension connects via
+  // WebSocket (which bypasses this HTTP handler entirely).
+  const origin = req.headers['origin'] as string | undefined;
+  if (origin && !origin.startsWith('chrome-extension://')) {
+    jsonResponse(res, 403, { ok: false, error: 'Forbidden: cross-origin request blocked' });
+    return;
+  }
+
+  // CORS: do NOT send Access-Control-Allow-Origin for normal requests.
+  // Only handle preflight so browsers get a definitive "no" answer.
+  if (req.method === 'OPTIONS') {
+    // No ACAO header → browser will block the actual request.
+    res.writeHead(204);
+    res.end();
+    return;
+  }
 
   const url = req.url ?? '/';
   const pathname = url.split('?')[0];
 
+  // Health-check endpoint — no X-OpenCLI header required.
+  // Used by the extension to silently probe daemon reachability before
+  // attempting a WebSocket connection (avoids uncatchable ERR_CONNECTION_REFUSED).
+  // Security note: this endpoint is reachable by any client that passes the
+  // origin check above (chrome-extension:// or no Origin header, e.g. curl).
+  // Timing side-channels can reveal daemon presence to local processes, which
+  // is an accepted risk given the daemon is loopback-only and short-lived.
+  if (req.method === 'GET' && pathname === '/ping') {
+    jsonResponse(res, 200, { ok: true }, getResponseCorsHeaders(pathname, origin));
+    return;
+  }
+
+  // Require custom header on all other HTTP requests.  Browsers cannot attach
+  // custom headers in "simple" requests, and our preflight returns no
+  // Access-Control-Allow-Headers, so scripted fetch() from web pages is
+  // blocked even if Origin check is somehow bypassed.
+  if (!req.headers['x-opencli']) {
+    jsonResponse(res, 403, { ok: false, error: 'Forbidden: missing X-OpenCLI header' });
+    return;
+  }
+
   if (req.method === 'GET' && pathname === '/status') {
+    const uptime = process.uptime();
+    const mem = process.memoryUsage();
     jsonResponse(res, 200, {
       ok: true,
+      pid: process.pid,
+      uptime,
+      daemonVersion: PKG_VERSION,
       extensionConnected: extensionWs?.readyState === WebSocket.OPEN,
+      extensionVersion,
+      extensionCompatRange,
       pending: pending.size,
+      memoryMB: Math.round(mem.rss / 1024 / 1024 * 10) / 10,
+      port: PORT,
     });
     return;
   }
@@ -97,8 +166,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  if (req.method === 'POST' && pathname === '/shutdown') {
+    jsonResponse(res, 200, { ok: true, message: 'Shutting down' });
+    setTimeout(() => shutdown(), 100);
+    return;
+  }
+
   if (req.method === 'POST' && url === '/command') {
-    resetIdleTimer();
     try {
       const body = JSON.parse(await readBody(req));
       if (!body.id) {
@@ -111,11 +185,22 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
       }
 
+      const timeoutMs = typeof body.timeout === 'number' && body.timeout > 0
+        ? body.timeout * 1000
+        : 120000;
+      if (pending.has(body.id)) {
+        jsonResponse(res, 409, {
+          id: body.id,
+          ok: false,
+          error: 'Duplicate command id already pending; retry',
+        });
+        return;
+      }
       const result = await new Promise<unknown>((resolve, reject) => {
         const timer = setTimeout(() => {
           pending.delete(body.id);
-          reject(new Error('Command timeout (120s)'));
-        }, 120000);
+          reject(new Error(`Command timeout (${timeoutMs / 1000}s)`));
+        }, timeoutMs);
         pending.set(body.id, { resolve, reject, timer });
         extensionWs!.send(JSON.stringify(body));
       });
@@ -136,20 +221,62 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 // ─── WebSocket for Extension ─────────────────────────────────────────
 
 const httpServer = createServer((req, res) => { handleRequest(req, res).catch(() => { res.writeHead(500); res.end(); }); });
-const wss = new WebSocketServer({ server: httpServer, path: '/ext' });
+const wss = new WebSocketServer({
+  server: httpServer,
+  path: '/ext',
+  verifyClient: ({ req }: { req: IncomingMessage }) => {
+    // Block browser-originated WebSocket connections.  Browsers don't
+    // enforce CORS on WebSocket, so a malicious webpage could connect to
+    // ws://localhost:19825/ext and impersonate the Extension.  Real Chrome
+    // Extensions send origin chrome-extension://<id>.
+    const origin = req.headers['origin'] as string | undefined;
+    return !origin || origin.startsWith('chrome-extension://');
+  },
+});
 
 wss.on('connection', (ws: WebSocket) => {
-  console.error('[daemon] Extension connected');
+  log.info('[daemon] Extension connected');
   extensionWs = ws;
+  extensionVersion = null; // cleared until hello message arrives
+  extensionCompatRange = null;
+
+  // ── Heartbeat: ping every 15s, close if 2 pongs missed ──
+  let missedPongs = 0;
+  const heartbeatInterval = setInterval(() => {
+    if (ws.readyState !== WebSocket.OPEN) {
+      clearInterval(heartbeatInterval);
+      return;
+    }
+    if (missedPongs >= 2) {
+      log.warn('[daemon] Extension heartbeat lost, closing connection');
+      clearInterval(heartbeatInterval);
+      ws.terminate();
+      return;
+    }
+    missedPongs++;
+    ws.ping();
+  }, 15000);
+
+  ws.on('pong', () => {
+    missedPongs = 0;
+  });
 
   ws.on('message', (data: RawData) => {
     try {
       const msg = JSON.parse(data.toString());
 
+      // Handle hello message from extension (version handshake)
+      if (msg.type === 'hello') {
+        extensionVersion = typeof msg.version === 'string' ? msg.version : null;
+        extensionCompatRange = typeof msg.compatRange === 'string' ? msg.compatRange : null;
+        return;
+      }
+
       // Handle log messages from extension
       if (msg.type === 'log') {
-        const prefix = msg.level === 'error' ? '❌' : msg.level === 'warn' ? '⚠️' : '📋';
-        console.error(`${prefix} [ext] ${msg.msg}`);
+        if (msg.level === 'error') log.error(`[ext] ${msg.msg}`);
+        else if (msg.level === 'warn') log.warn(`[ext] ${msg.msg}`);
+        else log.info(`[ext] ${msg.msg}`);
         pushLog({ level: msg.level, msg: msg.msg, ts: msg.ts ?? Date.now() });
         return;
       }
@@ -167,9 +294,12 @@ wss.on('connection', (ws: WebSocket) => {
   });
 
   ws.on('close', () => {
-    console.error('[daemon] Extension disconnected');
+    log.info('[daemon] Extension disconnected');
+    clearInterval(heartbeatInterval);
     if (extensionWs === ws) {
       extensionWs = null;
+      extensionVersion = null;
+      extensionCompatRange = null;
       // Reject all pending requests since the extension is gone
       for (const [id, p] of pending) {
         clearTimeout(p.timer);
@@ -180,24 +310,34 @@ wss.on('connection', (ws: WebSocket) => {
   });
 
   ws.on('error', () => {
-    if (extensionWs === ws) extensionWs = null;
+    clearInterval(heartbeatInterval);
+    if (extensionWs === ws) {
+      extensionWs = null;
+      extensionVersion = null;
+      extensionCompatRange = null;
+      // Reject pending requests in case 'close' does not follow this 'error'
+      for (const [, p] of pending) {
+        clearTimeout(p.timer);
+        p.reject(new Error('Extension disconnected'));
+      }
+      pending.clear();
+    }
   });
 });
 
 // ─── Start ───────────────────────────────────────────────────────────
 
 httpServer.listen(PORT, '127.0.0.1', () => {
-  console.error(`[daemon] Listening on http://127.0.0.1:${PORT}`);
-  resetIdleTimer();
+  log.info(`[daemon] Listening on http://127.0.0.1:${PORT}`);
 });
 
 httpServer.on('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`[daemon] Port ${PORT} already in use — another daemon is likely running. Exiting.`);
-    process.exit(0);
+    log.error(`[daemon] Port ${PORT} already in use — another daemon is likely running. Exiting.`);
+    process.exit(EXIT_CODES.SERVICE_UNAVAIL);
   }
-  console.error('[daemon] Server error:', err.message);
-  process.exit(1);
+  log.error(`[daemon] Server error: ${err.message}`);
+  process.exit(EXIT_CODES.GENERIC_ERROR);
 });
 
 // Graceful shutdown
@@ -210,7 +350,7 @@ function shutdown(): void {
   pending.clear();
   if (extensionWs) extensionWs.close();
   httpServer.close();
-  process.exit(0);
+  process.exit(EXIT_CODES.SUCCESS);
 }
 
 process.on('SIGTERM', shutdown);

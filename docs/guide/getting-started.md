@@ -11,12 +11,13 @@ OpenCLI turns **any website** or **Electron app** into a command-line interface 
 
 ## Highlights
 
-- **CLI All Electron** — CLI-ify apps like Antigravity Ultra! Now AI can control itself natively.
+- **Desktop App Control** — Drive Electron apps (Cursor, Codex, ChatGPT, Notion, etc.) directly from the terminal via CDP.
+- **Browser Automation** — `browser` gives AI agents direct browser control: click, type, extract, screenshot — fully scriptable.
+- **Website → CLI** — Turn any website into a deterministic CLI: 87+ pre-built adapters, or author your own with the `opencli-adapter-author` skill.
 - **Account-safe** — Reuses Chrome's logged-in state; your credentials never leave the browser.
-- **AI Agent ready** — `explore` discovers APIs, `synthesize` generates adapters, `cascade` finds auth strategies.
-- **Self-healing setup** — `opencli setup` verifies Browser Bridge connectivity; `opencli doctor` diagnoses daemon, extension, and live browser connectivity.
-- **Dynamic Loader** — Simply drop `.ts` or `.yaml` adapters into the `clis/` folder for auto-registration.
-- **Dual-Engine Architecture** — Supports both YAML declarative data pipelines and robust browser runtime TypeScript injections.
+- **AI Agent ready** — `opencli browser *` primitives (`open` / `network` / `state` / `eval` / `init` / `verify`) drive the adapter-authoring loop.
+- **Zero LLM cost** — No tokens consumed at runtime. Run 10,000 times and pay nothing.
+- **Deterministic** — Same command, same output schema, every time. Pipeable, scriptable, CI-friendly.
 
 ## Quick Start
 
@@ -48,6 +49,27 @@ opencli bilibili hot -f csv     # CSV
 opencli bilibili hot -v         # Verbose: show pipeline debug
 ```
 
+### Tab Completion
+
+OpenCLI supports intelligent tab completion to speed up command input:
+
+```bash
+# Add shell completion to your startup config
+echo 'eval "$(opencli completion zsh)"' >> ~/.zshrc              # Zsh
+echo 'eval "$(opencli completion bash)"' >> ~/.bashrc            # Bash
+echo 'opencli completion fish | source' >> ~/.config/fish/config.fish  # Fish
+
+# Restart your shell, then press Tab to complete:
+opencli [Tab]          # Complete site names (bilibili, zhihu, twitter...)
+opencli bilibili [Tab] # Complete commands (hot, search, me, download...)
+```
+
+The completion includes:
+- All available sites and adapters
+- Built-in commands (list, validate, verify, browser, doctor, plugin...)
+- Command aliases
+- Real-time updates as you add new adapters
+
 ## Next Steps
 
 - [Installation details](/guide/installation)
@@ -55,3 +77,4 @@ opencli bilibili hot -v         # Verbose: show pipeline debug
 - [Plugins — extend with community adapters](/guide/plugins)
 - [All available adapters](/adapters/)
 - [For developers / AI agents](/developer/contributing)
+- [Add a new Electron app CLI](/guide/electron-app-cli)

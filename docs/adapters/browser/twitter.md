@@ -19,6 +19,11 @@
 | `opencli twitter reply` | |
 | `opencli twitter delete` | |
 | `opencli twitter like` | |
+| `opencli twitter likes` | |
+| `opencli twitter lists` | |
+| `opencli twitter list-tweets` | |
+| `opencli twitter list-add` | |
+| `opencli twitter list-remove` | |
 | `opencli twitter article` | |
 | `opencli twitter follow` | |
 | `opencli twitter unfollow` | |
@@ -36,6 +41,12 @@
 ```bash
 # Quick start
 opencli twitter trending --limit 5
+
+# Search top tweets (default)
+opencli twitter search "react 19"
+
+# Search latest/live tweets
+opencli twitter search "react 19" --filter live
 
 # JSON output
 opencli twitter trending -f json

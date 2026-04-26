@@ -6,9 +6,7 @@
 import type { IPage } from '../../types.js';
 import { render } from '../template.js';
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+import { isRecord } from '../../utils.js';
 
 export async function stepNavigate(page: IPage | null, params: unknown, data: unknown, args: Record<string, unknown>): Promise<unknown> {
   if (isRecord(params) && 'url' in params) {
@@ -67,7 +65,7 @@ export async function stepSnapshot(page: IPage | null, params: unknown, _data: u
 export async function stepEvaluate(page: IPage | null, params: unknown, data: unknown, args: Record<string, unknown>): Promise<unknown> {
   const js = String(render(params, { args, data }));
   let result: unknown = await page!.evaluate(js);
-  // MCP may return JSON as a string — auto-parse it
+  // Browser may return JSON as a string — auto-parse it
   if (typeof result === 'string') {
     const trimmed = result.trim();
     if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {

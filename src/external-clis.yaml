@@ -14,22 +14,6 @@
   install:
     mac: "brew install --cask obsidian"
 
-- name: readwise
-  binary: readwise
-  description: "Readwise & Reader CLI — highlights, annotations, reading list"
-  homepage: "https://github.com/readwiseio/readwise-cli"
-  tags: [reading, highlights]
-  install:
-    default: "npm install -g @readwiseio/readwise-cli"
-
-- name: kubectl
-  binary: kubectl
-  description: "Kubernetes command-line tool"
-  homepage: "https://kubernetes.io/docs/reference/kubectl/"
-  tags: [kubernetes, k8s, devops]
-  install:
-    mac: "brew install kubectl"
-
 - name: docker
   binary: docker
   description: "Docker command-line interface"
@@ -38,11 +22,35 @@
   install:
     mac: "brew install --cask docker"
 
-- name: gws
-  binary: gws
-  description: "Google Workspace CLI — Docs, Sheets, Drive, Gmail, Calendar"
-  homepage: "https://github.com/nicholasgasior/gws"
-  tags: [google, docs, sheets, drive, workspace]
+- name: lark-cli
+  binary: lark-cli
+  description: "Lark/Feishu CLI — messages, documents, spreadsheets, calendar, tasks and 200+ commands for AI agents"
+  homepage: "https://github.com/larksuite/cli"
+  tags: [lark, feishu, collaboration, productivity, ai-agent]
   install:
-    mac: "brew install gws"
-    default: "npm install -g @nicholasgasior/gws"
+    default: "npm install -g @larksuite/cli"
+
+- name: dws
+  binary: dws
+  description: "DingTalk Workspace CLI — messages, docs, calendar, contacts and more for humans and AI agents"
+  homepage: "https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli"
+  tags: [dingtalk, collaboration, productivity, ai-agent]
+  install:
+    mac: "npm install -g dingtalk-workspace-cli"
+    linux: "npm install -g dingtalk-workspace-cli"
+
+- name: wecom-cli
+  binary: wecom-cli
+  description: "WeCom/企业微信 CLI — contacts, todos, meetings, messages, calendar, docs and smart sheets for AI agents"
+  homepage: "https://github.com/WecomTeam/wecom-cli"
+  tags: [wecom, wechat-work, collaboration, productivity, ai-agent]
+  install:
+    default: "npm install -g @wecom/cli"
+
+- name: vercel
+  binary: vercel
+  description: "Vercel CLI — deploy projects, manage domains, env vars, logs and serverless functions"
+  homepage: "https://vercel.com/docs/cli"
+  tags: [vercel, deployment, serverless, frontend, devops]
+  install:
+    default: "npm install -g vercel"

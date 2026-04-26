@@ -22,11 +22,20 @@
  * Additional tools:
  *   - scrollToRefJs(ref) — scroll to a data-opencli-ref element
  *   - getFormStateJs()  — extract all form fields as structured JSON
+ *
+ * Compound sidecar:
+ *   After the tree, a `compounds:` section lists rich JSON for every
+ *   date/select/file ref — format, full option list (up to cap) with
+ *   `options_total` reflecting the true count, file `accept` + `multiple`.
+ *   This is what the snapshot's inline attr dump cannot express and what
+ *   agents kept blowing turns on.
  */
+
+import { COMPOUND_INFO_JS } from './compound.js';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
-export interface SnapshotOptions {
+export interface DomSnapshotOptions {
   /** Extra pixels beyond viewport to include (default 800) */
   viewportExpand?: number;
   /** Maximum DOM depth to traverse (default 50) */
@@ -175,7 +184,7 @@ export function getFormStateJs(): string {
  * - `|iframe|` — iframe content
  * - `|table|` — markdown table rendering
  */
-export function generateSnapshotJs(opts: SnapshotOptions = {}): string {
+export function generateSnapshotJs(opts: DomSnapshotOptions = {}): string {
   const viewportExpand = opts.viewportExpand ?? 800;
   const maxDepth = Math.max(1, Math.min(opts.maxDepth ?? 50, 200));
   const interactiveOnly = opts.interactiveOnly ?? false;
@@ -195,6 +204,8 @@ export function generateSnapshotJs(opts: SnapshotOptions = {}): string {
   return `
 (() => {
   'use strict';
+
+  ${COMPOUND_INFO_JS}
 
   // ── Config ─────────────────────────────────────────────────────────
   const VIEWPORT_EXPAND = ${viewportExpand};
@@ -263,6 +274,38 @@ export function generateSnapshotJs(opts: SnapshotOptions = {}): string {
 
   const PROPAGATING_TAGS = new Set(['a', 'button']);
 
+  // Roles whose element wraps its own interactive descendants (icon spans
+  // inside a role=button, chevron inside role=link). When we see one of these,
+  // we propagate its bbox to children so we can suppress duplicate refs on
+  // undistinctive descendants that are ≥99% contained.
+  const PROPAGATING_ROLES = new Set(['button', 'link', 'menuitem', 'tab', 'option']);
+
+  function isBboxPropagator(el, tag) {
+    if (PROPAGATING_TAGS.has(tag)) return true;
+    const role = el.getAttribute('role');
+    return !!(role && PROPAGATING_ROLES.has(role));
+  }
+
+  // True when an interactive element still deserves its own [N] ref even
+  // though it's visually subsumed by a propagating ancestor. Anything with
+  // an aria-label, aria-labelledby, id, test id, name, or its own form
+  // semantics is treated as distinctive — everything else (naked spans /
+  // divs / svgs that merely inherit click from the parent button) gets
+  // folded into the parent so the snapshot doesn't ship [1]<button>[2]<svg>.
+  function isDistinctivelyInteractive(el) {
+    if (el.hasAttribute('aria-label')) return true;
+    if (el.hasAttribute('aria-labelledby')) return true;
+    if (el.id) return true;
+    if (el.getAttribute('data-testid') || el.getAttribute('data-test')) return true;
+    if (el.hasAttribute('name')) return true;
+    const tag = el.tagName.toLowerCase();
+    // Real form controls always stand on their own, even when nested in a label/button
+    if (tag === 'input' || tag === 'select' || tag === 'textarea') return true;
+    // Anchors with their own href are distinct targets
+    if (tag === 'a' && el.hasAttribute('href')) return true;
+    return false;
+  }
+
   const AD_PATTERNS = [
     'googleadservices.com', 'doubleclick.net', 'googlesyndication.com',
     'facebook.com/tr', 'analytics.google.com', 'connect.facebook.net',
@@ -270,6 +313,13 @@ export function generateSnapshotJs(opts: SnapshotOptions = {}): string {
   ];
 
   const AD_SELECTOR_RE = /\\b(ad[_-]?(?:banner|container|wrapper|slot|unit|block|frame|leaderboard|sidebar)|google[_-]?ad|sponsored|adsbygoogle|banner[_-]?ad)\\b/i;
+
+  // Search element indicators for heuristic detection
+  const SEARCH_INDICATORS = new Set([
+    'search', 'magnify', 'glass', 'lookup', 'find', 'query',
+    'search-icon', 'search-btn', 'search-button', 'searchbox',
+    'fa-search', 'icon-search', 'btn-search',
+  ]);
 
   // ── Viewport & Layout Helpers ──────────────────────────────────────
 
@@ -339,19 +389,87 @@ export function generateSnapshotJs(opts: SnapshotOptions = {}): string {
 
   // ── Interactivity Detection ────────────────────────────────────────
 
+  // Check if element contains a form control within limited depth (handles label/span wrappers)
+  function hasFormControlDescendant(el, maxDepth = 2) {
+    if (maxDepth <= 0) return false;
+    for (const child of el.children || []) {
+      const tag = child.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'select' || tag === 'textarea') return true;
+      if (hasFormControlDescendant(child, maxDepth - 1)) return true;
+    }
+    return false;
+  }
+
   function isInteractive(el) {
     const tag = el.tagName.toLowerCase();
     if (INTERACTIVE_TAGS.has(tag)) {
-      if (tag === 'label' && el.hasAttribute('for')) return false;
+      // Skip labels that proxy via "for" to avoid double-activating external inputs
+      if (tag === 'label') {
+        if (el.hasAttribute('for')) return false;
+        // Detect labels that wrap form controls up to two levels deep (label > span > input)
+        if (hasFormControlDescendant(el, 2)) return true;
+      }
       if (el.disabled && (tag === 'button' || tag === 'input')) return false;
       return true;
+    }
+    // Span wrappers for UI components - check if they contain form controls
+    if (tag === 'span') {
+      if (hasFormControlDescendant(el, 2)) return true;
     }
     const role = el.getAttribute('role');
     if (role && INTERACTIVE_ROLES.has(role)) return true;
     if (el.hasAttribute('onclick') || el.hasAttribute('onmousedown') || el.hasAttribute('ontouchstart')) return true;
     if (el.hasAttribute('tabindex') && el.getAttribute('tabindex') !== '-1') return true;
+    // Framework event listener detection (React/Vue/Angular onClick)
+    if (hasFrameworkListener(el)) return true;
     try { if (window.getComputedStyle(el).cursor === 'pointer') return true; } catch {}
     if (el.isContentEditable && el.getAttribute('contenteditable') !== 'false') return true;
+    // Search element heuristic detection
+    if (isSearchElement(el)) return true;
+    return false;
+  }
+
+  function hasFrameworkListener(el) {
+    try {
+      // React: __reactProps$xxx / __reactEvents$xxx with onClick/onMouseDown
+      for (const key of Object.keys(el)) {
+        if (key.startsWith('__reactProps$') || key.startsWith('__reactEvents$')) {
+          const props = el[key];
+          if (props && (props.onClick || props.onMouseDown || props.onPointerDown)) return true;
+        }
+      }
+      // Vue 3: _vei (Vue Event Invoker) with onClick
+      if (el._vei && (el._vei.onClick || el._vei.click || el._vei.onMousedown)) return true;
+      // Vue 2: __vue__ instance with $listeners
+      if (el.__vue__?.$listeners?.click) return true;
+      // Angular: ng-reflect-click binding
+      if (el.hasAttribute('ng-reflect-click')) return true;
+    } catch { /* ignore errors from cross-origin or frozen objects */ }
+    return false;
+  }
+
+  function isSearchElement(el) {
+    // Check class names for search indicators
+    // Note: SVG elements have className as SVGAnimatedString (not a string), use baseVal
+    const className = (typeof el.className === 'string' ? el.className : el.className?.baseVal || '').toLowerCase();
+    const classes = className.split(/\\s+/).filter(Boolean);
+    for (const cls of classes) {
+      const cleaned = cls.replace(/[^a-z0-9-]/g, '');
+      if (SEARCH_INDICATORS.has(cleaned)) return true;
+    }
+    // Check id for search indicators
+    const id = el.id?.toLowerCase() || '';
+    const cleanedId = id.replace(/[^a-z0-9-]/g, '');
+    if (SEARCH_INDICATORS.has(cleanedId)) return true;
+    // Check data-* attributes for search functionality
+    for (const attr of el.attributes || []) {
+      if (attr.name.startsWith('data-')) {
+        const value = attr.value.toLowerCase();
+        for (const kw of SEARCH_INDICATORS) {
+          if (value.includes(kw)) return true;
+        }
+      }
+    }
     return false;
   }
 
@@ -541,7 +659,10 @@ export function generateSnapshotJs(opts: SnapshotOptions = {}): string {
   const lines = [];
   const hiddenInteractives = [];
   const currentHashes = [];
+  const refIdentity = {};
+  const compoundInfos = {};
   let iframeCount = 0;
+  let crossOriginIndex = 0;
 
   function walk(el, depth, parentPropagatingRect) {
     if (depth > MAX_DEPTH) return false;
@@ -591,7 +712,9 @@ export function generateSnapshotJs(opts: SnapshotOptions = {}): string {
       if (!(tag === 'input' && el.type === 'file')) return false;
     }
 
-    const interactive = isInteractive(el);
+    // \`interactive\` gets demoted below if bbox containment folds this node
+    // into a propagating ancestor — using \`let\` so the dedup pass can mutate it.
+    let interactive = isInteractive(el);
 
     // Viewport threshold pruning
     if (hasArea && !isInExpandedViewport(rect)) {
@@ -612,7 +735,7 @@ export function generateSnapshotJs(opts: SnapshotOptions = {}): string {
     const scrollInfo = getScrollInfo(el);
     const isScrollable = scrollInfo !== null;
 
-    // BBox dedup
+    // BBox dedup — tier 1 (non-interactive descendants, 0.95 threshold)
     let excludedByParent = false;
     if (BBOX_DEDUP && parentPropagatingRect && !interactive) {
       if (hasArea && isContainedBy(rect, parentPropagatingRect, 0.95)) {
@@ -624,8 +747,19 @@ export function generateSnapshotJs(opts: SnapshotOptions = {}): string {
       }
     }
 
+    // BBox dedup — tier 2 (interactive descendants, 0.99 threshold, browser-use style).
+    // This kills the "[1]<button> [2]<svg> [3]<span>" noise on icon-buttons by
+    // folding the icon / chevron into the button's ref. The 0.99 threshold + the
+    // isDistinctivelyInteractive gate together ensure we only drop nodes that
+    // add no new actionable surface — a nested <input> or <a href> stays.
+    if (BBOX_DEDUP && parentPropagatingRect && interactive && hasArea) {
+      if (isContainedBy(rect, parentPropagatingRect, 0.99) && !isDistinctivelyInteractive(el)) {
+        interactive = false;
+      }
+    }
+
     let propagateRect = parentPropagatingRect;
-    if (BBOX_DEDUP && PROPAGATING_TAGS.has(tag) && hasArea) propagateRect = rect;
+    if (BBOX_DEDUP && hasArea && isBboxPropagator(el, tag)) propagateRect = rect;
 
     // Process children
     const origLen = lines.length;
@@ -675,11 +809,24 @@ export function generateSnapshotJs(opts: SnapshotOptions = {}): string {
     // Scroll marker
     if (isScrollable && !interactive) line += '|scroll|';
 
-    // Interactive index + data-ref
+    // Interactive index + data-ref + fingerprint
     if (interactive) {
       interactiveIndex++;
       if (ANNOTATE_REFS) el.setAttribute('data-opencli-ref', '' + interactiveIndex);
       line += isScrollable ? '|scroll[' + interactiveIndex + ']|' : '[' + interactiveIndex + ']';
+      // Store fingerprint for stale-ref detection
+      refIdentity['' + interactiveIndex] = {
+        tag: tag,
+        role: el.getAttribute('role') || '',
+        text: (el.textContent || '').trim().slice(0, 30),
+        ariaLabel: el.getAttribute('aria-label') || '',
+        id: el.id || '',
+        testId: el.getAttribute('data-testid') || el.getAttribute('data-test') || '',
+      };
+      // Compound contract for date/select/file — captured per-ref so the
+      // sidecar maps one-to-one with the [N] tokens in the tree.
+      const compound = compoundInfoOf(el);
+      if (compound) compoundInfos['' + interactiveIndex] = compound;
     }
 
     // Tag + attributes
@@ -713,7 +860,9 @@ export function generateSnapshotJs(opts: SnapshotOptions = {}): string {
       const doc = el.contentDocument;
       if (!doc || !doc.body) {
         const attrs = serializeAttrs(el);
-        lines.push(indent + '|iframe|<iframe' + (attrs ? ' ' + attrs : '') + ' /> (cross-origin)');
+        const frameLabel = '[F' + crossOriginIndex + ']';
+        lines.push(indent + '|iframe|' + frameLabel + '<iframe' + (attrs ? ' ' + attrs : '') + ' /> (cross-origin, use: opencli browser frames + browser eval --frame <index>)');
+        crossOriginIndex++;
         return false;
       }
       iframeCount++;
@@ -726,7 +875,9 @@ export function generateSnapshotJs(opts: SnapshotOptions = {}): string {
       return has;
     } catch {
       const attrs = serializeAttrs(el);
-      lines.push(indent + '|iframe|<iframe' + (attrs ? ' ' + attrs : '') + ' /> (blocked)');
+      const frameLabel = '[F' + crossOriginIndex + ']';
+      lines.push(indent + '|iframe|' + frameLabel + '<iframe' + (attrs ? ' ' + attrs : '') + ' /> (blocked, use: opencli browser frames + browser eval --frame <index>)');
+      crossOriginIndex++;
       return false;
     }
   }
@@ -757,12 +908,27 @@ export function generateSnapshotJs(opts: SnapshotOptions = {}): string {
     if (hiddenInteractives.length > 10) lines.push('  …' + (hiddenInteractives.length - 10) + ' more');
   }
 
+  // Compound sidecar — rich JSON for date/select/file refs. Keys align with [N] tokens in the tree.
+  const compoundRefs = Object.keys(compoundInfos);
+  if (compoundRefs.length > 0) {
+    lines.push('---');
+    lines.push('compounds (' + compoundRefs.length + '):');
+    compoundRefs.sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+    for (const ref of compoundRefs) {
+      try {
+        lines.push('  [' + ref + '] ' + JSON.stringify(compoundInfos[ref]));
+      } catch {}
+    }
+  }
+
   // Footer
   lines.push('---');
   lines.push('interactive: ' + interactiveIndex + ' | iframes: ' + iframeCount);
 
   // Store hashes on window for next diff snapshot
   try { window.__opencli_prev_hashes = JSON.stringify(currentHashes); } catch {}
+  // Store ref identity map for stale-ref detection by target resolver
+  try { window.__opencli_ref_identity = refIdentity; } catch {}
 
   return lines.join('\\n');
 })()

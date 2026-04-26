@@ -2,10 +2,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { spawnSync, execSync, execFileSync } from 'node:child_process';
+import { spawnSync, execFileSync } from 'node:child_process';
 import yaml from 'js-yaml';
-import chalk from 'chalk';
 import { log } from './logger.js';
+import { EXIT_CODES, getErrorMessage } from './errors.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -30,7 +30,10 @@ function getUserRegistryPath(): string {
   return path.join(home, '.opencli', 'external-clis.yaml');
 }
 
+let _cachedExternalClis: ExternalCliConfig[] | null = null;
+
 export function loadExternalClis(): ExternalCliConfig[] {
+  if (_cachedExternalClis) return _cachedExternalClis;
   const configs = new Map<string, ExternalCliConfig>();
 
   // 1. Load built-in
@@ -41,8 +44,8 @@ export function loadExternalClis(): ExternalCliConfig[] {
       const parsed = (yaml.load(raw) || []) as ExternalCliConfig[];
       for (const item of parsed) configs.set(item.name, item);
     }
-  } catch (err: any) {
-    log.warn(`Failed to parse built-in external-clis.yaml: ${err.message}`);
+  } catch (err) {
+    log.warn(`Failed to parse built-in external-clis.yaml: ${getErrorMessage(err)}`);
   }
 
   // 2. Load user custom
@@ -55,11 +58,12 @@ export function loadExternalClis(): ExternalCliConfig[] {
         configs.set(item.name, item); // Overwrite built-in if duplicated
       }
     }
-  } catch (err: any) {
-    log.warn(`Failed to parse user external-clis.yaml: ${err.message}`);
+  } catch (err) {
+    log.warn(`Failed to parse user external-clis.yaml: ${getErrorMessage(err)}`);
   }
 
-  return Array.from(configs.values()).sort((a, b) => a.name.localeCompare(b.name));
+  _cachedExternalClis = Array.from(configs.values()).sort((a, b) => a.name.localeCompare(b.name));
+  return _cachedExternalClis;
 }
 
 export function isBinaryInstalled(binary: string): boolean {
@@ -82,28 +86,83 @@ export function getInstallCmd(installConfig?: ExternalCliInstall): string | null
   return null;
 }
 
+/**
+ * Safely parses a command string into a binary and argument list.
+ * Rejects commands containing shell operators (&&, ||, |, ;, >, <, `) that
+ * cannot be safely expressed as execFileSync arguments.
+ *
+ * Args:
+ *   cmd: Raw command string from YAML config (e.g. "brew install gh")
+ *
+ * Returns:
+ *   Object with `binary` and `args` fields, or throws on unsafe input.
+ */
+export function parseCommand(cmd: string): { binary: string; args: string[] } {
+  const shellOperators = /&&|\|\|?|;|[><`$#\n\r]|\$\(/;
+  if (shellOperators.test(cmd)) {
+    throw new Error(
+      `Install command contains unsafe shell operators and cannot be executed securely: "${cmd}". ` +
+        `Please install the tool manually.`
+    );
+  }
+
+  // Tokenise respecting single- and double-quoted segments (no variable expansion).
+  const tokens: string[] = [];
+  const re = /(?:"([^"]*)")|(?:'([^']*)')|(\S+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(cmd)) !== null) {
+    tokens.push(match[1] ?? match[2] ?? match[3]);
+  }
+
+  if (tokens.length === 0) {
+    throw new Error(`Install command is empty.`);
+  }
+
+  const [binary, ...args] = tokens;
+  return { binary, args };
+}
+
+function shouldRetryWithCmdShim(binary: string, err: unknown): boolean {
+  const code = err instanceof Error ? (err as NodeJS.ErrnoException).code : undefined;
+  return os.platform() === 'win32' && !path.extname(binary) && code === 'ENOENT';
+}
+
+function runInstallCommand(cmd: string): void {
+  const { binary, args } = parseCommand(cmd);
+
+  try {
+    execFileSync(binary, args, { stdio: 'inherit' });
+  } catch (err) {
+    if (shouldRetryWithCmdShim(binary, err)) {
+      execFileSync(`${binary}.cmd`, args, { stdio: 'inherit' });
+      return;
+    }
+    throw err;
+  }
+}
+
 export function installExternalCli(cli: ExternalCliConfig): boolean {
   if (!cli.install) {
-    console.error(chalk.red(`No auto-install command configured for '${cli.name}'.`));
-    console.error(`Please install '${cli.binary}' manually.`);
+    log.error(`No auto-install command configured for '${cli.name}'.`);
+    log.info(`Please install '${cli.binary}' manually.`);
     return false;
   }
 
   const cmd = getInstallCmd(cli.install);
   if (!cmd) {
-    console.error(chalk.red(`No install command for your platform (${os.platform()}) for '${cli.name}'.`));
-    if (cli.homepage) console.error(`See: ${cli.homepage}`);
+    log.error(`No install command for your platform (${os.platform()}) for '${cli.name}'.`);
+    if (cli.homepage) log.info(`See: ${cli.homepage}`);
     return false;
   }
 
-  console.log(chalk.cyan(`🔹 '${cli.name}' is not installed. Auto-installing...`));
-  console.log(chalk.dim(`$ ${cmd}`));
+  log.info(`'${cli.name}' is not installed. Auto-installing...`);
+  log.verbose(`$ ${cmd}`);
   try {
-    execSync(cmd, { stdio: 'inherit' });
-    console.log(chalk.green(`✅ Installed '${cli.name}' successfully.\n`));
+    runInstallCommand(cmd);
+    log.success(`Installed '${cli.name}' successfully.`);
     return true;
-  } catch (err: any) {
-    console.error(chalk.red(`❌ Failed to install '${cli.name}': ${err.message}`));
+  } catch (err) {
+    log.error(`Failed to install '${cli.name}': ${getErrorMessage(err)}`);
     return false;
   }
 }
@@ -120,7 +179,7 @@ export function executeExternalCli(name: string, args: string[], preloaded?: Ext
     // 2. Try to auto install
     const success = installExternalCli(cli);
     if (!success) {
-      process.exitCode = 1;
+      process.exitCode = EXIT_CODES.SERVICE_UNAVAIL;
       return;
     }
   }
@@ -128,8 +187,8 @@ export function executeExternalCli(name: string, args: string[], preloaded?: Ext
   // 3. Passthrough execution with stdio inherited
   const result = spawnSync(cli.binary, args, { stdio: 'inherit' });
   if (result.error) {
-    console.error(chalk.red(`Failed to execute '${cli.binary}': ${result.error.message}`));
-    process.exitCode = 1;
+    log.error(`Failed to execute '${cli.binary}': ${result.error.message}`);
+    process.exitCode = EXIT_CODES.GENERIC_ERROR;
     return;
   }
   
@@ -173,13 +232,14 @@ export function registerExternalCli(name: string, opts?: RegisterOptions): void 
 
   if (existingIndex >= 0) {
     items[existingIndex] = { ...items[existingIndex], ...newItem };
-    console.log(chalk.green(`Updated '${name}' in user registry.`));
+    log.success(`Updated '${name}' in user registry.`);
   } else {
     items.push(newItem);
-    console.log(chalk.green(`Registered '${name}' in user registry.`));
+    log.success(`Registered '${name}' in user registry.`);
   }
 
   const dump = yaml.dump(items, { indent: 2, sortKeys: true });
   fs.writeFileSync(userPath, dump, 'utf8');
-  console.log(chalk.dim(userPath));
+  _cachedExternalClis = null; // Invalidate cache so next load reflects the change
+  log.verbose(userPath);
 }
