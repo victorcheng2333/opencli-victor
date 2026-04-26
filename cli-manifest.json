@@ -10258,6 +10258,87 @@
     "sourceFile": "lesswrong/user-posts.js"
   },
   {
+    "site": "liepin",
+    "name": "search",
+    "description": "猎聘搜索候选人简历",
+    "domain": "h.liepin.com",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "搜索关键词 (职位/技能/公司名)"
+      },
+      {
+        "name": "city",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "期望城市 (如 北京、上海、深圳)"
+      },
+      {
+        "name": "experience",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "工作年限: 1-3/3-5/5-10/10以上"
+      },
+      {
+        "name": "degree",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "学历: 大专/本科/硕士/博士"
+      },
+      {
+        "name": "active",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "活跃度: 当天/3天/7天/30天/90天"
+      },
+      {
+        "name": "page",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "起始页码 (从0开始)"
+      },
+      {
+        "name": "pages",
+        "type": "int",
+        "default": 1,
+        "required": false,
+        "help": "抓取页数 (默认1页，每页约15条)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "返回数量上限 (0=不限)"
+      },
+      {
+        "name": "delay",
+        "type": "int",
+        "default": 2,
+        "required": false,
+        "help": "翻页间隔秒数 (默认2秒)"
+      }
+    ],
+    "columns": [
+      "summary",
+      "id"
+    ],
+    "type": "js",
+    "modulePath": "liepin/search.js",
+    "sourceFile": "liepin/search.js",
+    "navigateBefore": "https://h.liepin.com"
+  },
+  {
     "site": "linkedin",
     "name": "search",
     "description": "Search LinkedIn jobs",
@@ -20194,6 +20275,628 @@
     "modulePath": "yuanbao/new.js",
     "sourceFile": "yuanbao/new.js",
     "navigateBefore": false
+  },
+  {
+    "site": "zconnect",
+    "name": "apps",
+    "description": "查看极空间已安装的应用",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "name",
+      "status",
+      "type"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/apps.js",
+    "sourceFile": "zconnect/apps.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "categories",
+    "description": "查看极空间文件类型分类",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "path",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "positional": true,
+        "help": "目录路径，支持相对路径 (默认 /sata1/my/data)"
+      }
+    ],
+    "columns": [
+      "type",
+      "ftype"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/categories.js",
+    "sourceFile": "zconnect/categories.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "cp",
+    "description": "复制极空间文件或目录",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "src",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "源路径，支持相对路径和逗号分隔多个"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "help": "目标目录，支持相对路径"
+      }
+    ],
+    "columns": [
+      "src",
+      "to",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/cp.js",
+    "sourceFile": "zconnect/cp.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "disk",
+    "description": "查看极空间磁盘使用情况",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "disk",
+      "model",
+      "total",
+      "used",
+      "available",
+      "health",
+      "temp"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/disk.js",
+    "sourceFile": "zconnect/disk.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "download",
+    "description": "从极空间下载文件或文件夹到本地",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "path",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "文件/目录路径，支持相对路径如 test/a.mp4"
+      },
+      {
+        "name": "output",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "本地输出目录 (默认 ~/Downloads/zspace)"
+      },
+      {
+        "name": "name",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "自定义文件名 (仅单文件时有效)"
+      }
+    ],
+    "columns": [
+      "file",
+      "size",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/download.js",
+    "sourceFile": "zconnect/download.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "files",
+    "description": "列出极空间文件和目录",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "path",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "positional": true,
+        "help": "目录路径，支持相对路径如 test (默认 /sata1/my/data)"
+      },
+      {
+        "name": "sort",
+        "type": "str",
+        "default": "mtime",
+        "required": false,
+        "help": "排序方式: mtime/name/size",
+        "choices": [
+          "mtime",
+          "name",
+          "size"
+        ]
+      },
+      {
+        "name": "hidden",
+        "type": "boolean",
+        "default": false,
+        "required": false,
+        "help": "显示隐藏文件"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 0,
+        "required": false,
+        "help": "返回数量上限 (0=不限)"
+      }
+    ],
+    "columns": [
+      "type",
+      "name",
+      "size",
+      "modified"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/files.js",
+    "sourceFile": "zconnect/files.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "logs",
+    "description": "查看极空间操作日志",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量 (默认20)"
+      }
+    ],
+    "columns": [
+      "time",
+      "group",
+      "title",
+      "content",
+      "device"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/logs.js",
+    "sourceFile": "zconnect/logs.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "mkdir",
+    "description": "在极空间创建目录（需局域网访问）",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "path",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "父目录路径，支持相对路径"
+      },
+      {
+        "name": "name",
+        "type": "str",
+        "required": true,
+        "help": "新目录名称"
+      }
+    ],
+    "columns": [
+      "name",
+      "path",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/mkdir.js",
+    "sourceFile": "zconnect/mkdir.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "mv",
+    "description": "移动极空间文件或目录",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "src",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "源路径，支持相对路径和逗号分隔多个"
+      },
+      {
+        "name": "to",
+        "type": "str",
+        "required": true,
+        "help": "目标目录，支持相对路径"
+      }
+    ],
+    "columns": [
+      "src",
+      "to",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/mv.js",
+    "sourceFile": "zconnect/mv.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "recent",
+    "description": "查看极空间最近访问的文件",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量 (默认20)"
+      }
+    ],
+    "columns": [
+      "name",
+      "size",
+      "type",
+      "accessed"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/recent.js",
+    "sourceFile": "zconnect/recent.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "rm",
+    "description": "删除极空间文件或目录（移入回收站）",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "path",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "要删除的路径，支持相对路径和逗号分隔多个"
+      }
+    ],
+    "columns": [
+      "path",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/rm.js",
+    "sourceFile": "zconnect/rm.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "search",
+    "description": "搜索极空间文件",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "keyword",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "搜索关键词"
+      },
+      {
+        "name": "path",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "搜索目录，支持相对路径 (默认 /sata1/my/data)"
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 30,
+        "required": false,
+        "help": "返回数量上限 (默认30)"
+      }
+    ],
+    "columns": [
+      "type",
+      "name",
+      "size",
+      "modified",
+      "path"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/search.js",
+    "sourceFile": "zconnect/search.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "settings",
+    "description": "查看极空间系统设置",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "category",
+      "setting",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/settings.js",
+    "sourceFile": "zconnect/settings.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "share-create",
+    "description": "创建极空间分享链接",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "path",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "要分享的路径，支持相对路径"
+      },
+      {
+        "name": "expire",
+        "type": "int",
+        "default": 86400,
+        "required": false,
+        "help": "有效期(秒)，默认86400(1天)。0=永久"
+      },
+      {
+        "name": "pass",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "提取密码（留空则无密码）"
+      }
+    ],
+    "columns": [
+      "file",
+      "url",
+      "expire",
+      "pass"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/share-create.js",
+    "sourceFile": "zconnect/share-create.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "share-delete",
+    "description": "删除极空间分享链接",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "id",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "分享ID (可通过 zconnect shares 查看)"
+      }
+    ],
+    "columns": [
+      "id",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/share-delete.js",
+    "sourceFile": "zconnect/share-delete.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "shares",
+    "description": "查看极空间分享链接列表",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量 (默认20)"
+      }
+    ],
+    "columns": [
+      "id",
+      "file",
+      "type",
+      "status",
+      "created"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/shares.js",
+    "sourceFile": "zconnect/shares.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "status",
+    "description": "查看极空间系统状态",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "item",
+      "value"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/status.js",
+    "sourceFile": "zconnect/status.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "tasks",
+    "description": "查看极空间文件操作任务",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 20,
+        "required": false,
+        "help": "返回数量 (默认20)"
+      }
+    ],
+    "columns": [
+      "id",
+      "operation",
+      "state",
+      "progress",
+      "src",
+      "created"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/tasks.js",
+    "sourceFile": "zconnect/tasks.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "trash-clean",
+    "description": "清空极空间回收站",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "pool",
+        "type": "str",
+        "default": "sata1",
+        "required": false,
+        "help": "存储池名称 (默认 sata1)"
+      }
+    ],
+    "columns": [
+      "pool",
+      "status"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/trash.js",
+    "sourceFile": "zconnect/trash.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "upload",
+    "description": "上传本地文件到极空间",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [
+      {
+        "name": "file",
+        "type": "str",
+        "required": true,
+        "positional": true,
+        "help": "本地文件路径"
+      },
+      {
+        "name": "dest",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "目标目录，支持相对路径 (默认 /sata1/my/data)"
+      },
+      {
+        "name": "name",
+        "type": "str",
+        "default": "",
+        "required": false,
+        "help": "自定义目标文件名 (默认使用原文件名)"
+      }
+    ],
+    "columns": [
+      "file",
+      "size",
+      "status",
+      "dest"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/upload.js",
+    "sourceFile": "zconnect/upload.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
+  },
+  {
+    "site": "zconnect",
+    "name": "users",
+    "description": "查看极空间用户列表",
+    "domain": "www.zconnect.cn",
+    "strategy": "cookie",
+    "browser": true,
+    "args": [],
+    "columns": [
+      "username",
+      "nickname",
+      "role",
+      "perm",
+      "created"
+    ],
+    "type": "js",
+    "modulePath": "zconnect/users.js",
+    "sourceFile": "zconnect/users.js",
+    "navigateBefore": "https://www.zconnect.cn/home/"
   },
   {
     "site": "zhihu",
