@@ -80,6 +80,7 @@ function resolveMap(input: string | undefined, map: Record<string, string>): str
 cli({
   site: 'liepin',
   name: 'search',
+  access: 'read',
   description: '猎聘搜索候选人简历',
   domain: 'h.liepin.com',
   strategy: Strategy.COOKIE,

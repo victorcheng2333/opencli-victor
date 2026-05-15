@@ -11,6 +11,7 @@ import { ZCONNECT_DOMAIN, requirePage, zosFetch, formatSize, formatTime, resolve
 cli({
   site: 'zconnect',
   name: 'search',
+  access: 'read',
   description: '搜索极空间文件',
   domain: ZCONNECT_DOMAIN,
   strategy: Strategy.COOKIE,

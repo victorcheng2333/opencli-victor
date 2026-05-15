@@ -40,6 +40,7 @@ async function listAllFiles(page: IPage, dirPath: string): Promise<Array<{ path:
 cli({
   site: 'zconnect',
   name: 'download',
+  access: 'read',
   description: '从极空间下载文件或文件夹到本地',
   domain: ZCONNECT_DOMAIN,
   strategy: Strategy.COOKIE,

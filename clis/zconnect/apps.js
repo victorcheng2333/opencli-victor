@@ -8,6 +8,7 @@ import { ZCONNECT_DOMAIN, requirePage, zosFetch } from './common.js';
 cli({
     site: 'zconnect',
     name: 'apps',
+    access: 'read',
     description: '查看极空间已安装的应用',
     domain: ZCONNECT_DOMAIN,
     strategy: Strategy.COOKIE,

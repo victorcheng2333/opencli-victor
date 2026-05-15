@@ -11,6 +11,7 @@ import { ZCONNECT_DOMAIN, requirePage, zosFetch, formatSize } from './common.js'
 cli({
   site: 'zconnect',
   name: 'disk',
+  access: 'read',
   description: '查看极空间磁盘使用情况',
   domain: ZCONNECT_DOMAIN,
   strategy: Strategy.COOKIE,

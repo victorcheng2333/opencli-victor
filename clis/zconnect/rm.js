@@ -9,6 +9,7 @@ import { ZCONNECT_DOMAIN, requirePage, zosFetchRaw, buildPathsBody, resolvePath 
 cli({
     site: 'zconnect',
     name: 'rm',
+    access: 'write',
     description: '删除极空间文件或目录（移入回收站）',
     domain: ZCONNECT_DOMAIN,
     strategy: Strategy.COOKIE,

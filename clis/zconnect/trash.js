@@ -9,6 +9,7 @@ import { ZCONNECT_DOMAIN, requirePage, zosFetch } from './common.js';
 cli({
     site: 'zconnect',
     name: 'trash-clean',
+    access: 'write',
     description: '清空极空间回收站',
     domain: ZCONNECT_DOMAIN,
     strategy: Strategy.COOKIE,

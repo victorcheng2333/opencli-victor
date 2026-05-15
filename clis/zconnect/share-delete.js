@@ -9,6 +9,7 @@ import { ZCONNECT_DOMAIN, requirePage, zosFetch } from './common.js';
 cli({
     site: 'zconnect',
     name: 'share-delete',
+    access: 'write',
     description: '删除极空间分享链接',
     domain: ZCONNECT_DOMAIN,
     strategy: Strategy.COOKIE,

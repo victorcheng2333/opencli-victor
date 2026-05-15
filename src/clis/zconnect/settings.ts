@@ -10,6 +10,7 @@ import { ZCONNECT_DOMAIN, requirePage, zosFetch } from './common.js';
 cli({
   site: 'zconnect',
   name: 'settings',
+  access: 'read',
   description: '查看极空间系统设置',
   domain: ZCONNECT_DOMAIN,
   strategy: Strategy.COOKIE,

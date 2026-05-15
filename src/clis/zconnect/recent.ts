@@ -10,6 +10,7 @@ import { ZCONNECT_DOMAIN, requirePage, zosFetch, formatSize, formatTime } from '
 cli({
   site: 'zconnect',
   name: 'recent',
+  access: 'read',
   description: '查看极空间最近访问的文件',
   domain: ZCONNECT_DOMAIN,
   strategy: Strategy.COOKIE,

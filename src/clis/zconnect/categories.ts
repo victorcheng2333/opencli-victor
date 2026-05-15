@@ -11,6 +11,7 @@ import { ZCONNECT_DOMAIN, requirePage, zosFetch, resolvePath } from './common.js
 cli({
   site: 'zconnect',
   name: 'categories',
+  access: 'read',
   description: '查看极空间文件类型分类',
   domain: ZCONNECT_DOMAIN,
   strategy: Strategy.COOKIE,

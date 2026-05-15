@@ -11,6 +11,7 @@ import { ZCONNECT_DOMAIN, requirePage, zosFetchRaw, buildPathsBody, resolvePath 
 cli({
   site: 'zconnect',
   name: 'mv',
+  access: 'write',
   description: '移动极空间文件或目录',
   domain: ZCONNECT_DOMAIN,
   strategy: Strategy.COOKIE,

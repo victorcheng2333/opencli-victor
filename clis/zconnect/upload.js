@@ -13,6 +13,7 @@ import { ZCONNECT_DOMAIN, requirePage, formatSize, resolvePath } from './common.
 cli({
     site: 'zconnect',
     name: 'upload',
+    access: 'write',
     description: '上传本地文件到极空间',
     domain: ZCONNECT_DOMAIN,
     strategy: Strategy.COOKIE,

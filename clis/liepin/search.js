@@ -84,6 +84,7 @@ function resolveMap(input, map) {
 cli({
     site: 'liepin',
     name: 'search',
+    access: 'read',
     description: '猎聘搜索候选人简历',
     domain: 'h.liepin.com',
     strategy: Strategy.COOKIE,

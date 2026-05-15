@@ -10,6 +10,7 @@ import { ZCONNECT_DOMAIN, requirePage, zosFetch, formatTime } from './common.js'
 cli({
   site: 'zconnect',
   name: 'shares',
+  access: 'read',
   description: '查看极空间分享链接列表',
   domain: ZCONNECT_DOMAIN,
   strategy: Strategy.COOKIE,

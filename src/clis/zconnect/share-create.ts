@@ -11,6 +11,7 @@ import { ZCONNECT_DOMAIN, requirePage, zosFetchRaw, buildPathsBody, resolvePath 
 cli({
   site: 'zconnect',
   name: 'share-create',
+  access: 'write',
   description: '创建极空间分享链接',
   domain: ZCONNECT_DOMAIN,
   strategy: Strategy.COOKIE,

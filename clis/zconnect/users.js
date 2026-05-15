@@ -8,6 +8,7 @@ import { ZCONNECT_DOMAIN, requirePage, zosFetch, formatTime } from './common.js'
 cli({
     site: 'zconnect',
     name: 'users',
+    access: 'read',
     description: '查看极空间用户列表',
     domain: ZCONNECT_DOMAIN,
     strategy: Strategy.COOKIE,

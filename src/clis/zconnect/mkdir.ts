@@ -11,6 +11,7 @@ import { ZCONNECT_DOMAIN, requirePage, zosFetch, resolvePath } from './common.js
 cli({
   site: 'zconnect',
   name: 'mkdir',
+  access: 'write',
   description: '在极空间创建目录（需局域网访问）',
   domain: ZCONNECT_DOMAIN,
   strategy: Strategy.COOKIE,
