@@ -789,6 +789,24 @@ const CONTAINER_TAB_GROUP_TITLE = {
 };
 const LEGACY_AUTOMATION_TAB_GROUP_TITLE = "OpenCLI";
 const AUTOMATION_TAB_GROUP_COLOR = "orange";
+const DISABLE_TAB_GROUP_KEY = "opencli_disable_tab_group_v1";
+let disableTabGroupCached = false;
+(async () => {
+  try {
+    const local = chrome.storage?.local;
+    if (!local) return;
+    const raw = await local.get(DISABLE_TAB_GROUP_KEY);
+    if (raw[DISABLE_TAB_GROUP_KEY] === true) disableTabGroupCached = true;
+  } catch {
+  }
+})();
+if (chrome.storage?.onChanged) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local") return;
+    const change = changes[DISABLE_TAB_GROUP_KEY];
+    if (change) disableTabGroupCached = change.newValue === true;
+  });
+}
 let leaseMutationQueue = Promise.resolve();
 const ownedContainers = {
   interactive: { windowId: null, groupId: null, promise: null },
@@ -1089,6 +1107,7 @@ async function discoverOwnedContainerFromTabGroup(role) {
   return null;
 }
 async function ensureOwnedContainerTabGroup(role, windowId, tabIds) {
+  if (disableTabGroupCached) return;
   const ids = [...new Set(tabIds.filter((id) => id !== void 0))];
   if (ids.length === 0) return;
   try {

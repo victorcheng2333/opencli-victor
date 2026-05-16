@@ -51,6 +51,17 @@ chrome.runtime.sendMessage({ type: 'getStatus' }, (resp) => {
   }
 });
 
+const DISABLE_TAB_GROUP_KEY = 'opencli_disable_tab_group_v1';
+const disableTabGroupCheckbox = document.getElementById('disableTabGroup');
+if (disableTabGroupCheckbox) {
+  chrome.storage.local.get(DISABLE_TAB_GROUP_KEY, (raw) => {
+    disableTabGroupCheckbox.checked = raw?.[DISABLE_TAB_GROUP_KEY] === true;
+  });
+  disableTabGroupCheckbox.addEventListener('change', (e) => {
+    chrome.storage.local.set({ [DISABLE_TAB_GROUP_KEY]: e.target.checked });
+  });
+}
+
 function setState(card, dot, state) {
   card.classList.remove('connected', 'disconnected', 'connecting');
   card.classList.add(state);

@@ -237,6 +237,25 @@ const CONTAINER_TAB_GROUP_TITLE: Record<OwnedWindowRole, string> = {
 };
 const LEGACY_AUTOMATION_TAB_GROUP_TITLE = 'OpenCLI';
 const AUTOMATION_TAB_GROUP_COLOR: chrome.tabGroups.ColorEnum = 'orange';
+const DISABLE_TAB_GROUP_KEY = 'opencli_disable_tab_group_v1';
+let disableTabGroupCached = false;
+
+(async () => {
+  try {
+    const local = chrome.storage?.local;
+    if (!local) return;
+    const raw = await local.get(DISABLE_TAB_GROUP_KEY) as Record<string, unknown>;
+    if (raw[DISABLE_TAB_GROUP_KEY] === true) disableTabGroupCached = true;
+  } catch { /* defaults to false */ }
+})();
+
+if (chrome.storage?.onChanged) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    const change = changes[DISABLE_TAB_GROUP_KEY];
+    if (change) disableTabGroupCached = change.newValue === true;
+  });
+}
 let leaseMutationQueue: Promise<void> = Promise.resolve();
 const ownedContainers: Record<OwnedWindowRole, {
   windowId: number | null;
@@ -607,6 +626,7 @@ async function discoverOwnedContainerFromTabGroup(role: OwnedWindowRole): Promis
 }
 
 async function ensureOwnedContainerTabGroup(role: OwnedWindowRole, windowId: number, tabIds: Array<number | undefined>): Promise<void> {
+  if (disableTabGroupCached) return;
   const ids = [...new Set(tabIds.filter((id): id is number => id !== undefined))];
   if (ids.length === 0) return;
 
