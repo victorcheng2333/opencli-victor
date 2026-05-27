@@ -784,11 +784,17 @@ const IDLE_TIMEOUT_NONE = -1;
 const REGISTRY_KEY = "opencli_target_lease_registry_v2";
 const LEASE_IDLE_ALARM_PREFIX = "opencli:lease-idle:";
 const CONTAINER_TAB_GROUP_TITLE = {
-  interactive: "OpenCLI Browser",
-  automation: "OpenCLI Adapter"
+  interactive: "OpenCLI",
+  automation: "OpenCLI"
 };
-const LEGACY_AUTOMATION_TAB_GROUP_TITLE = "OpenCLI";
-const AUTOMATION_TAB_GROUP_COLOR = "orange";
+const LEGACY_TAB_GROUP_TITLES = {
+  interactive: ["OpenCLI Browser"],
+  automation: ["OpenCLI Adapter"]
+};
+const TAB_GROUP_COLOR = {
+  interactive: "grey",
+  automation: "grey"
+};
 const DISABLE_TAB_GROUP_KEY = "opencli_disable_tab_group_v1";
 let disableTabGroupCached = false;
 (async () => {
@@ -1052,7 +1058,7 @@ async function getOwnedContainerGroupId(role, windowId) {
   return null;
 }
 function getOwnedContainerGroupTitles(role) {
-  return role === "automation" ? [CONTAINER_TAB_GROUP_TITLE.automation, LEGACY_AUTOMATION_TAB_GROUP_TITLE] : [CONTAINER_TAB_GROUP_TITLE.interactive];
+  return [CONTAINER_TAB_GROUP_TITLE[role], ...LEGACY_TAB_GROUP_TITLES[role]];
 }
 async function focusOwnedWindowIfRequested(windowId, mode) {
   if (mode !== "foreground") return;
@@ -1095,7 +1101,7 @@ async function discoverOwnedContainerFromTabGroup(role) {
       container.groupId = null;
     }
   }
-  for (const title of getOwnedContainerGroupTitles(role)) {
+  for (const title of LEGACY_TAB_GROUP_TITLES[role]) {
     const groups = await chrome.tabGroups.query({ title });
     const candidates = (await Promise.all(groups.map(toOwnedContainerDiscoveryCandidate))).filter((candidate) => candidate !== null);
     const selected = selectOwnedContainerDiscoveryCandidate(candidates);
@@ -1134,7 +1140,7 @@ async function ensureOwnedContainerTabGroupUnlocked(role, windowId, ids) {
     const groupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
     ownedContainers[role].groupId = groupId;
     await chrome.tabGroups.update(groupId, {
-      color: AUTOMATION_TAB_GROUP_COLOR,
+      color: TAB_GROUP_COLOR[role],
       title: CONTAINER_TAB_GROUP_TITLE[role],
       collapsed: false
     });
