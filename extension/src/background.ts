@@ -232,23 +232,11 @@ const IDLE_TIMEOUT_NONE = -1;             // borrowed bound tabs stay bound unti
 const REGISTRY_KEY = 'opencli_target_lease_registry_v2';
 const LEASE_IDLE_ALARM_PREFIX = 'opencli:lease-idle:';
 const CONTAINER_TAB_GROUP_TITLE: Record<OwnedWindowRole, string> = {
-  interactive: 'OpenCLI',
-  automation: 'OpenCLI',
+  interactive: 'OpenCLI Browser',
+  automation: 'OpenCLI Adapter',
 };
-// Legacy titles kept for discovery so groups created by older extension versions
-// are still recognized and reused after upgrade.
-const LEGACY_TAB_GROUP_TITLES: Record<OwnedWindowRole, string[]> = {
-  interactive: ['OpenCLI Browser'],
-  automation: ['OpenCLI Adapter'],
-};
-// Both roles use the same calm grey to minimize visual noise. Role
-// disambiguation across windows used to rely on color when both used the same
-// title — see discoverOwnedContainerFromTabGroup for how we avoid cross-role
-// claims without that color signal.
-const TAB_GROUP_COLOR: Record<OwnedWindowRole, chrome.tabGroups.ColorEnum> = {
-  interactive: 'grey',
-  automation: 'grey',
-};
+const LEGACY_AUTOMATION_TAB_GROUP_TITLE = 'OpenCLI';
+const AUTOMATION_TAB_GROUP_COLOR: chrome.tabGroups.ColorEnum = 'orange';
 const DISABLE_TAB_GROUP_KEY = 'opencli_disable_tab_group_v1';
 let disableTabGroupCached = false;
 
@@ -567,7 +555,9 @@ async function getOwnedContainerGroupId(role: OwnedWindowRole, windowId: number)
 }
 
 function getOwnedContainerGroupTitles(role: OwnedWindowRole): string[] {
-  return [CONTAINER_TAB_GROUP_TITLE[role], ...LEGACY_TAB_GROUP_TITLES[role]];
+  return role === 'automation'
+    ? [CONTAINER_TAB_GROUP_TITLE.automation, LEGACY_AUTOMATION_TAB_GROUP_TITLE]
+    : [CONTAINER_TAB_GROUP_TITLE.interactive];
 }
 
 type OwnedContainerDiscoveryCandidate = {
@@ -622,15 +612,7 @@ async function discoverOwnedContainerFromTabGroup(role: OwnedWindowRole): Promis
     }
   }
 
-  // Both roles now share the title 'OpenCLI' AND the color 'grey', so a
-  // current-title query cannot tell which role a found group belongs to.
-  // We only walk legacy titles ('OpenCLI Browser' / 'OpenCLI Adapter'), which
-  // remain role-specific by name. Loss of the current-title discovery path
-  // means a new install whose persisted windowId becomes stale (rare: storage
-  // loss while the window is still open) will create a fresh container; the
-  // orphaned 'OpenCLI'/grey group sits idle. We accept that to keep the
-  // visual minimal and avoid cross-role mis-claims.
-  for (const title of LEGACY_TAB_GROUP_TITLES[role]) {
+  for (const title of getOwnedContainerGroupTitles(role)) {
     const groups = await chrome.tabGroups.query({ title });
     const candidates = (await Promise.all(groups.map(toOwnedContainerDiscoveryCandidate)))
       .filter((candidate): candidate is OwnedContainerDiscoveryCandidate => candidate !== null);
@@ -678,11 +660,8 @@ async function ensureOwnedContainerTabGroupUnlocked(role: OwnedWindowRole, windo
 
     const groupId = await chrome.tabs.group({ tabIds: ids, createProperties: { windowId } });
     ownedContainers[role].groupId = groupId;
-    // Note: collapsed groups are auto-saved and pinned to the bookmarks bar
-    // on Chrome 142+, which is intrusive and not extension-controllable.
-    // Stay expanded — the grey + short 'OpenCLI' title is calm enough.
     await chrome.tabGroups.update(groupId, {
-      color: TAB_GROUP_COLOR[role],
+      color: AUTOMATION_TAB_GROUP_COLOR,
       title: CONTAINER_TAB_GROUP_TITLE[role],
       collapsed: false,
     });

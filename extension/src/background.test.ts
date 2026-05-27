@@ -148,10 +148,9 @@ function createChromeMock() {
         if (!group) throw new Error(`Unknown group ${groupId}`);
         return group;
       }),
-      query: vi.fn(async (queryInfo: { windowId?: number; title?: string; color?: chrome.tabGroups.ColorEnum } = {}) => groups.filter((group) => {
+      query: vi.fn(async (queryInfo: { windowId?: number; title?: string } = {}) => groups.filter((group) => {
         if (queryInfo.windowId !== undefined && group.windowId !== queryInfo.windowId) return false;
         if (queryInfo.title !== undefined && group.title !== queryInfo.title) return false;
-        if (queryInfo.color !== undefined && group.color !== queryInfo.color) return false;
         return true;
       })),
       update: vi.fn(async (groupId: number, updates: { title?: string; color?: chrome.tabGroups.ColorEnum; collapsed?: boolean }) => {
@@ -1048,7 +1047,7 @@ describe('background tab isolation', () => {
     expect(chrome.windows.create).toHaveBeenCalledTimes(1);
   });
 
-  it('marks a newly created owned automation window with an OpenCLI tab group', async () => {
+  it('marks a newly created owned automation window with an OpenCLI Adapter tab group', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     vi.stubGlobal('chrome', chrome);
 
@@ -1061,8 +1060,8 @@ describe('background tab isolation', () => {
       expect.objectContaining({
         id: 100,
         windowId: 1,
-        title: 'OpenCLI',
-        color: 'grey',
+        title: 'OpenCLI Adapter',
+        color: 'orange',
         collapsed: false,
       }),
     ]);
@@ -1098,8 +1097,8 @@ describe('background tab isolation', () => {
     expect(chrome.windows.create).toHaveBeenNthCalledWith(1, expect.objectContaining({ focused: true }));
     expect(chrome.windows.create).toHaveBeenNthCalledWith(2, expect.objectContaining({ focused: false }));
     expect(groups).toEqual(expect.arrayContaining([
-      expect.objectContaining({ windowId: 20, title: 'OpenCLI' }),
-      expect.objectContaining({ windowId: 21, title: 'OpenCLI' }),
+      expect.objectContaining({ windowId: 20, title: 'OpenCLI Browser' }),
+      expect.objectContaining({ windowId: 21, title: 'OpenCLI Adapter' }),
     ]));
   });
 
@@ -1438,13 +1437,7 @@ describe('background tab isolation', () => {
     expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 98, tabIds: [78] });
   });
 
-  it('does not claim a pre-split orange OpenCLI group; creates a fresh automation container instead', async () => {
-    // Before the interactive/automation role split, the single owned group was
-    // titled 'OpenCLI' with color 'orange'. The current adapter container also
-    // uses title 'OpenCLI' (with role-color 'cyan' as the disambiguator), so
-    // re-claiming the pre-split orange group could shadow a user-managed group
-    // that happens to share the title. We let it sit idle and create a fresh
-    // container instead.
+  it('discovers and reuses a legacy OpenCLI automation group before creating a duplicate', async () => {
     const { chrome, tabs, groups } = createChromeMock();
     tabs.push({
       id: 78,
@@ -1467,14 +1460,12 @@ describe('background tab isolation', () => {
     const mod = await import('./background');
     const tabId = await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
 
-    expect(tabId).toBe(1);
-    expect(chrome.windows.create).toHaveBeenCalledTimes(1);
-    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(1);
-    // The pre-split orange group is left untouched.
-    expect(groups.find((g) => g.id === 98)).toEqual(expect.objectContaining({
-      title: 'OpenCLI',
-      color: 'orange',
-    }));
+    expect(tabId).toBe(78);
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(mod.__test__.getAutomationWindowId(adapterKey('twitter'))).toBe(8);
+    expect(tabs.find((tab) => tab.id === 78)?.groupId).toBe(98);
+    expect(chrome.tabs.group).toHaveBeenCalledWith({ groupId: 98, tabIds: [78] });
+    expect(chrome.tabGroups.update).not.toHaveBeenCalled();
   });
 
   it('reuses a persisted automation group id after service worker restart even if the user renamed it', async () => {
