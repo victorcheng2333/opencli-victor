@@ -26,7 +26,8 @@
     "modulePath": "12306/auth.js",
     "sourceFile": "12306/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "12306",
@@ -468,7 +469,8 @@
     "modulePath": "1688/auth.js",
     "sourceFile": "1688/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "1688",
@@ -755,7 +757,8 @@
     "modulePath": "1point3acres/auth.js",
     "sourceFile": "1point3acres/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "1point3acres",
@@ -1453,7 +1456,8 @@
     "modulePath": "amazon/auth.js",
     "sourceFile": "amazon/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "amazon",
@@ -3071,7 +3075,8 @@
     "modulePath": "band/auth.js",
     "sourceFile": "band/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "band",
@@ -3933,7 +3938,8 @@
     "modulePath": "bilibili/auth.js",
     "sourceFile": "bilibili/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "bilibili",
@@ -5675,7 +5681,8 @@
     "modulePath": "boss/auth.js",
     "sourceFile": "boss/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "boss",
@@ -6137,7 +6144,8 @@
     "modulePath": "chaoxing/auth.js",
     "sourceFile": "chaoxing/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "chaoxing",
@@ -6477,7 +6485,8 @@
     "modulePath": "chatgpt/auth.js",
     "sourceFile": "chatgpt/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "chatgpt",
@@ -7420,7 +7429,8 @@
     "modulePath": "claude/auth.js",
     "sourceFile": "claude/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "claude",
@@ -8674,7 +8684,8 @@
     "modulePath": "coupang/auth.js",
     "sourceFile": "coupang/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "coupang",
@@ -9342,7 +9353,8 @@
     "modulePath": "ctrip/auth.js",
     "sourceFile": "ctrip/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "ctrip",
@@ -10121,7 +10133,8 @@
     "modulePath": "deepseek/auth.js",
     "sourceFile": "deepseek/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "deepseek",
@@ -10560,7 +10573,8 @@
     "modulePath": "dianping/auth.js",
     "sourceFile": "dianping/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "dianping",
@@ -11472,7 +11486,8 @@
     "modulePath": "douban/auth.js",
     "sourceFile": "douban/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "douban",
@@ -11919,7 +11934,8 @@
     "modulePath": "doubao/auth.js",
     "sourceFile": "doubao/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "doubao",
@@ -12527,7 +12543,8 @@
     "modulePath": "douyin/auth.js",
     "sourceFile": "douyin/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "douyin",
@@ -13779,7 +13796,8 @@
     "modulePath": "facebook/auth.js",
     "sourceFile": "facebook/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "facebook",
@@ -14093,7 +14111,8 @@
     "modulePath": "flomo/auth.js",
     "sourceFile": "flomo/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "flomo",
@@ -14453,7 +14472,8 @@
     "modulePath": "gemini/auth.js",
     "sourceFile": "gemini/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "gemini",
@@ -14853,7 +14873,8 @@
     "modulePath": "gitee/auth.js",
     "sourceFile": "gitee/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "gitee",
@@ -14995,7 +15016,8 @@
     "modulePath": "github/auth.js",
     "sourceFile": "github/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "github",
@@ -15930,7 +15952,8 @@
     "modulePath": "grok/auth.js",
     "sourceFile": "grok/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "grok",
@@ -16557,7 +16580,8 @@
     "modulePath": "hf/auth.js",
     "sourceFile": "hf/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "hf",
@@ -17995,7 +18019,8 @@
     "modulePath": "hupu/auth.js",
     "sourceFile": "hupu/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "hupu",
@@ -18814,7 +18839,8 @@
     "modulePath": "instagram/auth.js",
     "sourceFile": "instagram/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "instagram",
@@ -19411,7 +19437,8 @@
     "modulePath": "jd/auth.js",
     "sourceFile": "jd/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "jd",
@@ -19571,7 +19598,8 @@
     "modulePath": "jianyu/auth.js",
     "sourceFile": "jianyu/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "jianyu",
@@ -19784,7 +19812,8 @@
     "modulePath": "jike/auth.js",
     "sourceFile": "jike/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "jike",
@@ -20110,7 +20139,8 @@
     "modulePath": "jimeng/auth.js",
     "sourceFile": "jimeng/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "jimeng",
@@ -20551,7 +20581,8 @@
     "modulePath": "ke/auth.js",
     "sourceFile": "ke/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "ke",
@@ -21019,7 +21050,8 @@
     "modulePath": "kimi/auth.js",
     "sourceFile": "kimi/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "kimi",
@@ -22527,7 +22559,8 @@
     "modulePath": "linkedin/auth.js",
     "sourceFile": "linkedin/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "linkedin",
@@ -23368,7 +23401,8 @@
     "modulePath": "linkedin-learning/auth.js",
     "sourceFile": "linkedin-learning/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "linkedin-learning",
@@ -23622,7 +23656,8 @@
     "modulePath": "linux-do/auth.js",
     "sourceFile": "linux-do/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "linux-do",
@@ -24107,7 +24142,8 @@
     "modulePath": "maimai/auth.js",
     "sourceFile": "maimai/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "maimai",
@@ -24368,7 +24404,8 @@
     "modulePath": "manus/auth.js",
     "sourceFile": "manus/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "manus",
@@ -24749,7 +24786,8 @@
     "modulePath": "mercury/check-login.js",
     "sourceFile": "mercury/check-login.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "mercury",
@@ -24834,7 +24872,8 @@
     "modulePath": "mercury/reimbursement-draft.js",
     "sourceFile": "mercury/reimbursement-draft.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "mercury",
@@ -26022,7 +26061,8 @@
     "modulePath": "notebooklm/auth.js",
     "sourceFile": "notebooklm/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "notebooklm",
@@ -26530,7 +26570,8 @@
     "modulePath": "nowcoder/auth.js",
     "sourceFile": "nowcoder/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "nowcoder",
@@ -29099,7 +29140,8 @@
     "modulePath": "pixiv/auth.js",
     "sourceFile": "pixiv/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "pixiv",
@@ -29312,7 +29354,8 @@
     "modulePath": "powerchina/auth.js",
     "sourceFile": "powerchina/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "powerchina",
@@ -30589,7 +30632,8 @@
     "modulePath": "quark/auth.js",
     "sourceFile": "quark/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "quark",
@@ -31099,7 +31143,8 @@
     "modulePath": "qwen/auth.js",
     "sourceFile": "qwen/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "qwen",
@@ -31411,7 +31456,8 @@
     "modulePath": "reddit/auth.js",
     "sourceFile": "reddit/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "reddit",
@@ -32155,7 +32201,8 @@
     "modulePath": "rednote/auth.js",
     "sourceFile": "rednote/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "rednote",
@@ -32478,7 +32525,8 @@
     "modulePath": "reuters/auth.js",
     "sourceFile": "reuters/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "reuters",
@@ -33837,7 +33885,8 @@
     "modulePath": "slock/whoami.js",
     "sourceFile": "slock/whoami.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "slock",
@@ -35796,7 +35845,8 @@
     "modulePath": "suno/auth.js",
     "sourceFile": "suno/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "suno",
@@ -35966,7 +36016,8 @@
     "modulePath": "taobao/auth.js",
     "sourceFile": "taobao/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "taobao",
@@ -36807,7 +36858,8 @@
     "modulePath": "tiktok/auth.js",
     "sourceFile": "tiktok/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "tiktok",
@@ -37185,7 +37237,8 @@
     "modulePath": "toutiao/auth.js",
     "sourceFile": "toutiao/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "toutiao",
@@ -40266,7 +40319,8 @@
     "modulePath": "twitter/auth.js",
     "sourceFile": "twitter/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "twitter",
@@ -41213,7 +41267,8 @@
     "modulePath": "upwork/auth.js",
     "sourceFile": "upwork/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "upwork",
@@ -41410,7 +41465,8 @@
     "modulePath": "v2ex/auth.js",
     "sourceFile": "v2ex/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "v2ex",
@@ -41829,7 +41885,8 @@
     "modulePath": "wechat-channels/auth.js",
     "sourceFile": "wechat-channels/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "wechat-channels",
@@ -42116,7 +42173,8 @@
     "modulePath": "weibo/auth.js",
     "sourceFile": "weibo/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "weibo",
@@ -42724,7 +42782,8 @@
     "modulePath": "weread/auth.js",
     "sourceFile": "weread/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "weread",
@@ -43771,7 +43830,8 @@
     "modulePath": "xianyu/auth.js",
     "sourceFile": "xianyu/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "xianyu",
@@ -44174,7 +44234,8 @@
     "modulePath": "xiaoe/auth.js",
     "sourceFile": "xiaoe/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "xiaoe",
@@ -44811,7 +44872,8 @@
     "modulePath": "xiaohongshu/auth.js",
     "sourceFile": "xiaohongshu/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "xiaohongshu",
@@ -45594,7 +45656,8 @@
     "modulePath": "xueqiu/auth.js",
     "sourceFile": "xueqiu/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "xueqiu",
@@ -46610,7 +46673,8 @@
     "modulePath": "youtube/auth.js",
     "sourceFile": "youtube/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "youtube",
@@ -47062,7 +47126,8 @@
     "modulePath": "yuanbao/auth.js",
     "sourceFile": "yuanbao/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "yuanbao",
@@ -48382,7 +48447,8 @@
     "modulePath": "zhihu/auth.js",
     "sourceFile": "zhihu/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "zhihu",
@@ -48833,7 +48899,8 @@
     "modulePath": "zsxq/auth.js",
     "sourceFile": "zsxq/auth.js",
     "navigateBefore": false,
-    "siteSession": "persistent"
+    "siteSession": "persistent",
+    "defaultWindowMode": "foreground"
   },
   {
     "site": "zsxq",
