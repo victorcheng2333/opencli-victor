@@ -727,7 +727,7 @@ describe('background tab isolation', () => {
     );
 
     expect(result).toEqual({ id: 'implicit-close', ok: true, data: { closed: 'target-1' } });
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
     expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
   });
 
@@ -1140,8 +1140,29 @@ describe('background tab isolation', () => {
       ok: true,
       data: { closed: 'target-1' },
     }));
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
     expect(chrome.windows.remove).not.toHaveBeenCalled();
+    expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
+  });
+
+  it('closes the owned container window when the last lease leaves only blank tabs', async () => {
+    const { chrome, tabs } = createChromeMock();
+    // Window 1 is the owned container. Blank out its other tab so nothing
+    // worth keeping remains once the lease tab goes.
+    const sibling = tabs.find((tab) => tab.id === 3);
+    if (sibling) sibling.url = 'about:blank';
+    vi.stubGlobal('chrome', chrome);
+
+    const mod = await import('./background');
+    await mod.__test__.resolveTabId(undefined, adapterKey('twitter'));
+
+    await mod.__test__.handleTabs(
+      { id: 'close-last-lease', action: 'tabs', op: 'close', session: adapterKey('twitter') },
+      adapterKey('twitter'),
+    );
+
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
+    expect(chrome.windows.remove).toHaveBeenCalledWith(1);
     expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
   });
 
@@ -2104,8 +2125,8 @@ describe('background tab isolation', () => {
     // the canonical group is re-found in memory via the title layer instead.
     expect(finalRegistry.ownedContainers.interactive.groupId).toBeUndefined();
     expect(mod.__test__.getInteractiveContainer().groupId).toBe(200);
-    // The lease was released down the proper owned-placeholder path, not wiped.
-    expect(chrome.tabs.update).toHaveBeenCalledWith(1, { url: 'about:blank', active: true });
+    // The lease was released down the proper owned path (tab closed), not wiped.
+    expect(chrome.tabs.remove).toHaveBeenCalledWith(1);
     expect(mod.__test__.getSession(adapterKey('twitter'))).toBeNull();
   });
 

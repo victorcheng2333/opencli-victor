@@ -2367,6 +2367,28 @@ async function handleWaitDownload(cmd) {
     return errorResult(cmd.id, err);
   }
 }
+async function closeOwnedContainerIfDisposable(role, windowId) {
+  if (windowId === null) return;
+  try {
+    const tabs = await chrome.tabs.query({ windowId });
+    const disposable = tabs.every((t) => {
+      const url = t.url || t.pendingUrl || "";
+      return url === "" || url === BLANK_PAGE;
+    });
+    if (!disposable) return;
+    await chrome.windows.remove(windowId).catch(() => {
+    });
+    const container = ownedContainers[role];
+    if (container.windowId === windowId) {
+      container.windowId = null;
+      container.groupId = null;
+      container.promise = null;
+      container.groupPromise = null;
+    }
+    console.log(`[opencli] Closed owned ${role} window ${windowId} (no leases left)`);
+  } catch {
+  }
+}
 async function releaseLease(leaseKey, reason = "released") {
   const session = automationSessions.get(leaseKey);
   if (!session) {
@@ -2390,16 +2412,10 @@ async function releaseLease(leaseKey, reason = "released") {
         });
         console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
       } else {
-        try {
-          const tab = await chrome.tabs.update(tabId, { url: BLANK_PAGE, active: true });
-          const group = await ensureOwnedContainerGroup(getOwnedWindowRole(leaseKey), session.windowId, [tab.id ?? tabId]);
-          if (group) session.windowId = group.windowId;
-          console.log(`[opencli] Released owned tab lease ${tabId} as reusable placeholder (session=${session.session}, surface=${session.surface}, ${reason})`);
-        } catch {
-          await chrome.tabs.remove(tabId).catch(() => {
-          });
-          console.log(`[opencli] Released owned tab lease ${tabId} (session=${session.session}, surface=${session.surface}, ${reason})`);
-        }
+        await chrome.tabs.remove(tabId).catch(() => {
+        });
+        await closeOwnedContainerIfDisposable(getOwnedWindowRole(leaseKey), session.windowId);
+        console.log(`[opencli] Released owned tab lease ${tabId} and closed container (session=${session.session}, surface=${session.surface}, ${reason})`);
       }
     } else {
       console.log(`[opencli] Released legacy owned window lease ${session.windowId} without closing container (session=${session.session}, surface=${session.surface}, ${reason})`);
