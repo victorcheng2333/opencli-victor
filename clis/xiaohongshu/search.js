@@ -363,8 +363,15 @@ function buildApplySearchFiltersJs(requestedFilters) {
         const text = (element) => (element?.textContent || '').replace(/\\s+/g, '').trim();
         const visible = (element) => {
           if (!element) return false;
+          // Accessibility overlays injected by other extensions clone real
+          // controls at the same coordinates but mark themselves hidden and
+          // near-transparent. They pass a width/height check, so screen them
+          // out here or every cloned control reads as a second match.
+          if (element.getAttribute && element.getAttribute('aria-hidden') === 'true') return false;
           const rect = element.getBoundingClientRect();
           const style = getComputedStyle(element);
+          const opacity = Number.parseFloat(style.opacity);
+          if (Number.isFinite(opacity) && opacity < 0.01) return false;
           return rect.width > 0 && rect.height > 0 &&
             style.display !== 'none' && style.visibility !== 'hidden';
         };

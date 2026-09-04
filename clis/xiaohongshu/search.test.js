@@ -145,6 +145,21 @@ function createFilterBehaviorPage(options = {}) {
             container.className = 'tag-container';
             for (const choice of choices) {
                 if (options.missing === `${groupLabel}/${choice}`) continue;
+                if (options.proxyOverlay === `${groupLabel}/${choice}`) {
+                    // Mimic the invisible clone a third-party accessibility
+                    // extension stacks on top of the real chip.
+                    const proxy = document.createElement('div');
+                    proxy.className = `tags${state[groupLabel] === choice ? ' active' : ''}`;
+                    proxy.setAttribute('aria-hidden', 'true');
+                    proxy.setAttribute('tabindex', '-1');
+                    proxy.style.opacity = '0.00001';
+                    const proxyLabel = document.createElement('span');
+                    proxyLabel.textContent = choice;
+                    proxy.append(proxyLabel);
+                    proxy.addEventListener('click', () => clicks.push(`proxy:${groupLabel}/${choice}`));
+                    markVisible(proxy);
+                    container.append(proxy);
+                }
                 const copies = options.ambiguous === `${groupLabel}/${choice}` ? 2 : 1;
                 for (let copy = 0; copy < copies; copy++) {
                     const option = document.createElement('div');
@@ -696,6 +711,20 @@ describe('xiaohongshu search filter behavior', () => {
                 '发布时间': '一天内',
                 '搜索范围': '已关注',
             });
+        }
+        finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('ignores aria-hidden proxy chips injected over the real filter option', async () => {
+        vi.useFakeTimers();
+        try {
+            const page = createFilterBehaviorPage({ proxyOverlay: '排序依据/最新' });
+            await expect(runFilterCommand(page, { sort: 'latest' })).resolves.toBeDefined();
+            // The real chip was clicked, never the invisible clone stacked on it.
+            expect(page.filterClicks).toContain('排序依据/最新');
+            expect(page.filterClicks.every((entry) => !entry.startsWith('proxy:'))).toBe(true);
         }
         finally {
             vi.useRealTimers();
